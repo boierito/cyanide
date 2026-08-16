@@ -8,9 +8,10 @@ on:
       - ".github/workflows/storage-rescue.yml"
       - "Cyanide/StorageRescueViewController.h"
       - "Cyanide/StorageRescueViewController.m"
+      - "Cyanide/StorageRescueIntegration.m"
       - "Cyanide/StorageRescueRemoteTest.m"
-      - "Cyanide/StorageRescuePermissionProbe.m"
-      - "Cyanide/StorageRescueUI.m"
+      - "Cyanide/StorageRescueProbeViewController.h"
+      - "Cyanide/StorageRescueProbeViewController.m"
 
 permissions:
   contents: read
