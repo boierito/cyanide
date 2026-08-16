@@ -6,12 +6,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/storage-rescue.yml"
-      - "Cyanide/StorageRescueViewController.h"
-      - "Cyanide/StorageRescueViewController.m"
       - "Cyanide/StorageRescueIntegration.m"
-      - "Cyanide/StorageRescueRemoteTest.m"
-      - "Cyanide/StorageRescueProbeViewController.h"
-      - "Cyanide/StorageRescueProbeViewController.m"
+      - "Cyanide/StorageRescueSolverViewController.h"
+      - "Cyanide/StorageRescueSolverViewController.m"
 
 permissions:
   contents: read
@@ -43,7 +40,7 @@ jobs:
       - name: Upload Storage Rescue
         uses: actions/upload-artifact@v4
         with:
-          name: Cyanide-StorageRescue-Native
+          name: Cyanide-StorageRescue-Solver
           path: build/storage-rescue-artifact/Cyanide-StorageRescue.ipa
           if-no-files-found: error
           compression-level: 0
