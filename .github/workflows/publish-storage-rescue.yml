@@ -73,11 +73,10 @@ jobs:
           EOF
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" build/Storage-Rescue.ipa --clobber
-            gh release edit "$TAG" --title "Storage Rescue v1.0.0" --notes-file /tmp/release-notes.md
-          else
-            gh release create "$TAG" build/Storage-Rescue.ipa \
-              --target "$GITHUB_SHA" \
-              --title "Storage Rescue v1.0.0" \
-              --notes-file /tmp/release-notes.md
+            gh release delete "$TAG" --yes --cleanup-tag
           fi
+
+          gh release create "$TAG" build/Storage-Rescue.ipa \
+            --target "$GITHUB_SHA" \
+            --title "Storage Rescue v1.0.0" \
+            --notes-file /tmp/release-notes.md
