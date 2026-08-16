@@ -1,0 +1,83 @@
+name: Publish Storage Rescue v1.0.0
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-storage-rescue.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build unsigned IPA
+        run: |
+          chmod +x scripts/build.sh
+          ./scripts/build.sh
+          cp -L build/Cyanide.ipa build/Storage-Rescue.ipa
+          ls -lh build/Storage-Rescue.ipa
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="storage-rescue-v1.0.0"
+          cat > /tmp/release-notes.md <<'EOF'
+          # Storage Rescue v1.0.0
+
+          First public dedicated release of Storage Rescue.
+
+          Storage Rescue is an iOS recovery utility built from Cyanide/DarkSword for removing staged filesystem data when normal deletion returns `EPERM`.
+
+          ## Before using it
+
+          Move **only** the files or folders you intentionally want to permanently delete into:
+
+          ```text
+          /var/mobile/Documents/test
+          ```
+
+          Do not move `/var/mobile/Documents` itself, your entire Library, or unrelated data. The app is intentionally restricted to this hard-coded directory.
+
+          ## Recommended flow
+
+          1. Prepare Access
+          2. Scan Target
+          3. Prove One Real Delete
+          4. Delete Entire Test Directory
+
+          Mass deletion remains locked until an original staged file is actually deleted and verified with `lstat() -> ENOENT`.
+
+          The solver includes guarded APFS/BSD-flag recovery and refuses the kernel metadata write if vnode/fsnode validation does not match the userspace metadata.
+
+          ## Installation
+
+          `Storage-Rescue.ipa` is unsigned. Sign/sideload it using a compatible method for your device.
+
+          ## Warning
+
+          This is destructive low-level filesystem tooling. There is no undo. Kernel exploitation and filesystem metadata changes can panic/reboot a device or cause data loss. Stage only data you have deliberately chosen to destroy.
+          EOF
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" build/Storage-Rescue.ipa --clobber
+            gh release edit "$TAG" --title "Storage Rescue v1.0.0" --notes-file /tmp/release-notes.md
+          else
+            gh release create "$TAG" build/Storage-Rescue.ipa \
+              --target "$GITHUB_SHA" \
+              --title "Storage Rescue v1.0.0" \
+              --notes-file /tmp/release-notes.md
+          fi
