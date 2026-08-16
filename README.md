@@ -1,254 +1,150 @@
-## Project status
-
-Cyanide is no longer actively maintained by `zeroxjf`.
-
-Patreon integration has been removed, all installable Cyanide tweaks are free,
-and previously unreleased work-in-progress tweak code has been opened under
-AGPL-3.0. Anyone can fork it, study it, continue it, or reuse it under the
-license terms.
-
-This was originally an AI vibe-coded project, so the codebase should be
-approachable for someone who wants to pick it up, clean it up, or continue
-experimenting.
-
-The old README is preserved below for historical context and build details, but
-parts of it may become stale now that this repository is no longer actively
-maintained.
-
-<details>
-<summary>Archived project README</summary>
-
 <p align="center">
-  <img src="https://raw.githubusercontent.com/zeroxjf/cyanide/main/Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png" alt="Cyanide" width="160">
+  <img src="Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png" alt="Cyanide" width="150">
 </p>
 
-<h1 align="center">Cyanide</h1>
-
-**By [@zeroxjf](https://github.com/zeroxjf)** — an iOS tweak runner built on top of the DarkSword kernel r/w primitive.
-
-Cyanide is a fork of [`wh1te4ever/darksword-kexploit-fun`](https://github.com/wh1te4ever/darksword-kexploit-fun)
-for iOS kernel research. It wraps the native DarkSword kernel stages in an
-Objective-C iOS app, restructures the UI as an Installer/Settings split, and
-adds a few reliability fixes for repeated local testing. It does not ship
-the browser-delivered WebKit/dyld parts of the original DarkSword chain.
-
-## Project Status
-
-As of v1.3.6, Patreon integration has been removed. All installable Cyanide
-tweaks are free and no tweak access depends on account linking.
-
-Previously unreleased work-in-progress tweak code has been opened under the
-same AGPL-3.0 license as the rest of the project. Some unfinished entries remain
-visible in the app so contributors can find them, but installation stays
-disabled until someone finishes and verifies them.
-
-`zeroxjf` is stepping away from active Cyanide development. The code is now
-open under AGPL-3.0 so anyone can fork it, study it, reuse it, or continue it
-under the license terms.
-
-## Install
-
-Open this page on your iPhone/iPad and tap one of the buttons below.
+<h1 align="center">Cyanide — Storage Rescue Fork</h1>
 
 <p align="center">
-  <a href="https://celloserenity.github.io/altdirect/?url=https://raw.githubusercontent.com/zeroxjf/cyanide/main/source.json" target="_blank">
-    <img src="https://github.com/CelloSerenity/altdirect/blob/main/assets/png/AltSource_Blue.png?raw=true" alt="Add AltSource" width="200">
-  </a>
-  <a href="https://github.com/zeroxjf/cyanide/releases/latest" target="_blank">
-    <img src="https://github.com/CelloSerenity/altdirect/blob/main/assets/png/Download_Blue.png?raw=true" alt="Download .ipa" width="200">
-  </a>
+  iOS kernel research toolkit based on DarkSword, with a verified storage-recovery workflow for files that normal file managers cannot unlink.
 </p>
 
-## Feedback
+> **Status:** public research fork. The original Cyanide project is no longer actively maintained by its original author. This fork preserves the original project and adds a practical, guarded Storage Rescue workflow.
 
-- [Report a bug](https://github.com/zeroxjf/cyanide/issues/new?template=bug_report.yml)
-- [Request a feature](https://github.com/zeroxjf/cyanide/issues/new?template=feature_request.yml)
-- [Join the Signal group](https://signal.group/#CjQKIP0pxjc9V52ddCNk--04DosuoQl-vVOsznJfQ4GwlrlxEhCveFhBS8YdNcILpUFt7IqC) for setup help, support,
-  test notes, and rough ideas before they become issues.
+## Why this fork exists
 
-## Beta Tweaks
+This fork was created after encountering a real iOS storage problem: a very large cache tree could be read, moved and inspected, but could not be deleted by normal jailed file managers even though ownership and POSIX permissions looked correct.
 
-Beta tweaks are free and visible without account linking. They are unstable and
-intended for testers who are comfortable with SpringBoard glitches, crashes, or
-partial behavior.
+The final solution was not another `chmod`, `chown`, trash implementation, or `NSFileManager` wrapper. The working path required a verified native `unlink(2)` flow plus inspection and repair of the metadata that can block namespace deletion on APFS.
 
-## Tweaks
+The result is **Storage Rescue**, integrated directly into Cyanide.
 
-These tweaks have been tested on iOS 18.x and 26.x. Expect version drift in
-SpringBoard and related daemons to break things on other releases.
+## Storage Rescue
 
-### Status Bar
+Open:
 
-- **StatBar**: battery temperature and free-RAM overlay anchored to the
-  SpringBoard status bar, with optional C/F and network-speed display.
-- **NSBar**: compact live download/upload speed overlay for the status bar,
-  with selectable corner/center positions. Ported from
-  [`d1y/cyanide-ios`](https://github.com/d1y/cyanide-ios).
-- **NiceBar Lite**: configurable status-bar-adjacent labels for custom text,
-  date/time formats, battery, memory, traffic, uptime, IP address, disk,
-  thermal state, and other live readouts. Ported from
-  [`d1y/cyanide-ios`](https://github.com/d1y/cyanide-ios).
+`Settings → Storage`
 
-### Home Screen Layout
+The current solver uses a deliberately narrow safety boundary:
 
-- **SBCustomizer**: dock icon count, home-screen columns/rows, and hidden icon
-  labels.
-- **Home Layout Extras**: extra padding around the home grid and dock, plus
-  per-icon scale for home and dock icons. Stacks on top of SBCustomizer.
+```text
+/var/mobile/Documents/test
+```
 
-### Performance
+It will not operate outside that tree.
 
-- **Powercuff**: CPU/GPU underclocking through simulated `thermalmonitord`
-  pressure levels (off, nominal, light, moderate, heavy). Lasts until reboot.
-  Port of [`rpetrich/Powercuff`](https://github.com/rpetrich/Powercuff).
+### Recovery workflow
 
-### SpringBoard Tweaks
+Storage Rescue is intentionally staged:
 
-Ported from [`kolbicz/DarkSword-Tweaks`](https://github.com/kolbicz/DarkSword-Tweaks):
+1. **Prepare Access**
+   - Starts or reuses the DarkSword kernel read/write primitive.
+   - Requests a SpringBoard-issued root read/write sandbox extension.
+   - Verifies access before continuing.
 
-- **Disable App Library**: removes the App Library page past the last home screen.
-- **Disable Icon Fly-In**: skips the spring-in animation when icons appear.
-- **Zero Wake Animation**: snaps the display on instantly when waking.
-- **Zero Backlight Fade**: instant lock/unlock backlight.
-- **Double-Tap to Lock**: lock the device with a wallpaper double-tap.
+2. **Scan Target**
+   - Walks the target tree without modifying it.
+   - Counts files and directories.
+   - Reports logical and allocated size.
 
-### System Updates
+3. **Prove One Real Delete**
+   - Selects one real file from the target tree.
+   - Attempts a native `unlink(2)`.
+   - Can request Apple's `com.apple.private.safe-move.receive` extension when needed.
+   - Inspects BSD/APFS flags on the file and its parent chain.
+   - Detects blocking flags such as:
+     - `UF_IMMUTABLE`
+     - `UF_APPEND`
+     - `UF_NOUNLINK`
+     - `UF_DATAVAULT`
+     - `SF_IMMUTABLE`
+     - `SF_APPEND`
+     - `SF_RESTRICTED`
+     - `SF_NOUNLINK`
+   - Tries normal `chflags()` first.
+   - Falls back to a guarded KRW metadata repair only when the APFS vnode layout can be cross-validated against `stat()` / `fstat()`.
+   - Checks `com.apple.macl` where relevant.
+   - Declares success only after `lstat()` confirms `ENOENT`.
 
-- **Disable OTA Updates**: toggles the launchd OTA `disabled.plist` to block or
-  unblock update prompts. Persists across reboots.
+4. **DELETE Entire Test Directory**
+   - Remains locked until step 3 has physically removed and verified one original file.
+   - Uses `unlink()` for files and `rmdir()` for directories.
+   - Stops instead of blindly continuing through repeated failures.
+   - Measures free space before and after the operation.
 
-### Beta
+The important distinction is that the UI does **not** treat `sandbox_check == ALLOW`, `isWritableFileAtPath:`, or `isDeletableFileAtPath:` as proof of success. The file must actually disappear from the filesystem namespace.
 
-> ⚠︎ Work in progress — these may crash SpringBoard, glitch layout, work only
-> partially, or need re-applying between builds.
+## KRW safety guard
 
-- **Gravity Lite**: core port of Julio Verne's classic Gravity tweak. Applies
-  UIDynamicAnimator physics to home-screen and dock icons — gravity, collisions,
-  bounce, friction, accelerometer steering, shake pulses, and an explosion
-  button. Use Restore Icon Layout if icons stay displaced after deactivating.
-- **Axon Lite**: groups Notification Center requests by app with a SpringBoard
-  overlay and dedups duplicates while the RemoteCall session is alive.
-- **Dynamic Stage Lite**: brings Stage Manager-style split-view to iPhone over
-  RemoteCall — no jailbreak required. Hosts a second app's scene alongside
-  SpringBoard using the same scene-hosting design as [`tomt000`'s Dynamic Stage](https://havoc.app/package/dynamicstage).
-- **FastLockX Lite**: keeps Face ID retry/unlock requests armed through
-  SpringBoard timers so pickup-to-unlock can work after Cyanide closes.
-- **Cyanide Themer**: per-bundle icon theme engine. Walks SpringBoard's
-  SBIconView hierarchy and swaps each icon's image with a PNG matched on bundle
-  ID. Ships with iOS 6 Theme; also accepts a custom folder of `<bundleID>.png`
-  files or a binary plist. Pick a theme in Settings before running.
-- **SnowBoard Lite**: imports SnowBoard/IconBundles-style theme folders or
-  archives into Cyanide's local theme library, then applies the selected theme
-  through the existing icon replacement pipeline. Ported from
-  [`d1y/cyanide-ios`](https://github.com/d1y/cyanide-ios).
-- **LiveWP**: copies a selected MP4/MOV/M4V into Cyanide's app container and
-  plays it behind SpringBoard's home and lock screen windows while the live
-  RemoteCall session is active. Ported from
-  [`d1y/cyanide-ios`](https://github.com/d1y/cyanide-ios).
-- **Watch Pairing Override**: edits the watchOS pairing range stored on the
-  iPhone so you can pair a newer Apple Watch or revive an older one. Persists
-  across reboots; respring before pairing.
-- **Location Simulator**: drives Apple's CoreLocation simulation path from a
-  RemoteCall host process and sets a static target coordinate. Simulated
-  locations may violate app terms, platform rules, game rules, ride-share or
-  delivery policies, or local law depending on how they are used. Use only where
-  you have permission; you are responsible for your use and apply or restore it
-  at your own risk. It may also affect location-tied system behavior such as
-  time zone/date/time handling and can have unintended consequences; only use it
-  if you know what you're doing. Credits: `kolbicz` provided the
-  RemoteCall/CLSimulationManager GPS spoofer prototype, and `ezzuldinSt`'s
-  LSpoof provided the app-side spoofing, picker, bookmarks, and route-simulation
-  reference.
-- **Call Recording Sound**: replaces the CallServices
-  `StartDisclosureWithTone` and `StopDisclosure` audio files with Cyanide's
-  bundled silent payloads, with separate Silence and Restore actions. Cyanide
-  backs up the first originals into its app container before replacement, but
-  this is still a persistent system-file edit under
-  `/var/mobile/Library/CallServices/Greetings/default`. Disclosure sounds may be
-  legally required where you live; you are responsible for your use and should
-  restore the originals before removing Cyanide if you want Cyanide's backups
-  written back. Credits: `YangJiiii` (`@duongduong0908`) for the EnsWilde and
-  Disable Call Recording BookRestore reference tools, and `@Little_34306` as
-  credited by the original projects for the Disable Call Recording concept.
+The metadata-repair path is intentionally conservative.
 
-### In Development
+Before writing APFS metadata, Cyanide obtains the vnode for an already-open file descriptor and validates the filesystem node against userspace metadata. UID, GID, mode and BSD flags must all match the corresponding `stat`/`fstat` values.
 
-> These entries are visible but not installable because they do not work yet.
-> Their app/source paths are left in place so someone can pick them up later.
+If that validation fails, the solver logs:
 
-- **Signal Readouts**: unfinished status-bar numeric signal readouts.
-- **TypeBanner**: unfinished iMessage typing banner experiment.
-- **Notification Island**: unfinished Dynamic Island notification mirror.
-- **IPA Decryptor**: unfinished local IPA decryptor workflow.
+```text
+KRW GUARD ABORT
+```
 
-## Supported Targets
+and performs **no kernel write** for that object.
 
-Tested target range:
+After a repair, the value is read back and the inode and other metadata are checked again before deletion is attempted.
 
-- iOS/iPadOS 17.0 through 18.7.1
-- iOS/iPadOS 26.0 through 26.0.1
-- A19/M5 devices are not supported
+This is important because APFS structure offsets are version-sensitive; a guessed write is not an acceptable recovery strategy.
 
-The kernel bugs used here, `CVE-2025-43510` and `CVE-2025-43520`, were fixed in
-iOS/iPadOS 18.7.2 and 26.1. Later builds are outside this kernel exploit window.
+## What this is for
 
-## What This Fork Changes
+Storage Rescue is intended for recovery/debugging cases where:
 
-- Cleans shared exploit state before each attempt.
-- Matches the target process with an explicit marker.
-- Validates sockets before using the spray path.
-- Treats missed races as retryable failures instead of hard failures.
-- Tightens the A18/M4 `pe_v2` path with initialized target-file contents,
-  stable local remap addresses, bounded page freeing, socket-spray preflight
-  checks, and controlled zone-trim retries.
+- a cache or temporary-data tree is consuming significant storage;
+- the files are visible and readable;
+- ownership and normal POSIX permissions appear valid;
+- standard deletion APIs or jailed file managers still return `EPERM` or otherwise fail;
+- you control the device and understand what is being removed.
 
-## Kernel Research Features
+It is **not** intended as a generic "delete anything on iOS" button. The hard path boundary exists on purpose.
 
-- Escape the app sandbox.
-- Control or crash userspace processes from the app.
-- Change UID, GID, and sticky bits on target files.
-- Disable ASLR by setting `P_DISABLE_ASLR` in `launchd`'s `proc->p_flag`.
+## Current implementation notes
 
-## Credits
+The solver currently uses:
 
-- [`opa334`](https://github.com/opa334): original [`darksword-kexploit`](https://github.com/opa334/darksword-kexploit), ChOma, and XPF — the kernel r/w primitive Cyanide is built on.
-- [`wh1te4ever`](https://github.com/wh1te4ever): [`kfun` / `darksword-kexploit-fun`](https://github.com/wh1te4ever/darksword-kexploit-fun) — the RemoteCall implementation that lets a sideloaded app apply tweaks inside SpringBoard. Cyanide is a fork of this project.
-- [`rooootdev`](https://github.com/rooootdev): working kexploit behavior used to stabilize this fork.
-- [`neonmodder123`](https://github.com/neonmodder123): Web Respring method.
-- [`kolbicz`](https://github.com/kolbicz): OTA Disabler, SpringBoard tweaks, and
-  the RemoteCall/CLSimulationManager GPS spoofer prototype used as the starting
-  point for Location Simulator.
-- `ezzuldinSt`: LSpoof app-side `CLLocationManager` spoofing, picker,
-  bookmarks, and route-simulation reference used while shaping Location
-  Simulator.
-- `YangJiiii` (`@duongduong0908`): EnsWilde and Disable Call Recording
-  BookRestore reference tools used while shaping Call Recording Sound.
-- `@Little_34306`: credited by the original call-recording projects for the
-  Disable Call Recording concept.
-- [`rpetrich`](https://github.com/rpetrich): Powercuff.
-- [Julio Verne](https://github.com/julioverne): the original [Gravity](https://github.com/julioverne/Gravity) tweak that Gravity Lite is a core port of.
-- [`d1y`](https://x.com/chenhonzhou): [`cyanide-ios`](https://github.com/d1y/cyanide-ios)
-  AGPL-3.0 sources used for the NSBar, NiceBar Lite, SnowBoard Lite, and
-  LiveWP ports.
-- [`tomt000`](https://github.com/tomt000): [Dynamic Stage](https://havoc.app/package/dynamicstage) — the original Stage Manager-for-iPhone tweak whose split-view + scene-hosting design Dynamic Stage Lite re-implements over RemoteCall.
+- DarkSword kernel R/W;
+- Cyanide's vnode/APFS helpers;
+- SpringBoard RemoteCall;
+- sandbox extensions;
+- native `unlink(2)` and `rmdir(2)`;
+- BSD/APFS flag inspection and guarded repair;
+- xattr inspection for `com.apple.macl`;
+- post-operation filesystem verification.
 
-### UI inspiration
+The original Cyanide tweak runner remains in the repository as well.
 
-- The classic [Installer.app](https://github.com/AppTapp/Installer-3) (Ripdev & Nullriver Software, now maintained by AppTapp and the Legacy Jailbreak community) — the iPhoneOS 1 package-manager look that the Cyanide Installer tab is modeled after.
-- The [Sileo Project](https://github.com/Sileo/Sileo) (the Sileo Team) — the queue → review → confirm install flow and the bottom queue-popup pattern.
+## Supported exploit window
+
+The upstream Cyanide code targets the DarkSword-compatible iOS/iPadOS range documented by the original project. Kernel exploit compatibility is device- and OS-version-dependent and can change across builds.
+
+Do not assume that a build working on one device/OS combination implies compatibility with another.
 
 ## Build
+
+The repository includes the normal Cyanide build script:
 
 ```sh
 ./scripts/build.sh
 ```
 
-The build script uses the `Cyanide` scheme, disables code signing, and writes
-an unsigned IPA to:
+It produces an unsigned IPA at:
 
 ```text
 build/Cyanide.ipa
 ```
+
+A dedicated GitHub Actions workflow is also included:
+
+```text
+.github/workflows/storage-rescue.yml
+```
+
+The workflow builds and uploads an unsigned Storage Rescue IPA artifact.
 
 Equivalent manual build:
 
@@ -262,26 +158,44 @@ xcodebuild \
   build
 ```
 
+You still need an appropriate signing/sideloading method to install the resulting application on a device.
+
+## Important warning
+
+This repository contains low-level iOS kernel and filesystem research code.
+
+Incorrect filesystem metadata writes can corrupt data or make a device unstable. Keep backups of anything important. Do not remove system files simply because the tool can access them, and do not weaken the path guards without understanding the consequences.
+
+Storage Rescue was designed around the principle: **prove one real deletion safely before allowing a recursive operation**.
+
+## Project lineage and credits
+
+This repository is a fork and builds on substantial work by other researchers and developers.
+
+- [`zeroxjf/cyanide`](https://github.com/zeroxjf/cyanide) — original Cyanide project and UI/tweak framework.
+- [`opa334/darksword-kexploit`](https://github.com/opa334/darksword-kexploit) — DarkSword kernel R/W primitive and related research.
+- [`wh1te4ever/darksword-kexploit-fun`](https://github.com/wh1te4ever/darksword-kexploit-fun) — RemoteCall-based experimentation used by Cyanide.
+- [`d1y/cyanide-ios`](https://github.com/d1y/cyanide-ios) — additional Cyanide-related AGPL work used by upstream ports.
+- [`kolbicz/DarkSword-Tweaks`](https://github.com/kolbicz/DarkSword-Tweaks) — DarkSword tweak research used by upstream Cyanide.
+- `rooootdev`, `neonmodder123`, `rpetrich`, Julio Verne, `tomt000`, `YangJiiii`, `@Little_34306`, `ezzuldinSt` and the other contributors credited by the original Cyanide project.
+
+The Storage Rescue implementation in this fork was developed from a real recovery/debugging case and integrated on top of those existing primitives.
+
+## Contributing
+
+Useful contributions include:
+
+- testing on additional supported device / iOS combinations;
+- documenting reproducible `EPERM` filesystem cases;
+- improving metadata validation before KRW writes;
+- reducing reliance on hard-coded structure assumptions;
+- adding tests that prove a deletion actually occurred rather than trusting permission checks;
+- improving error reporting without weakening safety boundaries.
+
+When reporting a Storage Rescue issue, include the relevant Activity log, iOS version, device model, and the exact stage that failed. Avoid uploading personal file contents.
+
 ## License
 
-This repository is licensed under **AGPL-3.0**. See `LICENSE`.
+This repository is licensed under **AGPL-3.0**, consistent with the upstream project. See [`LICENSE`](LICENSE).
 
-The NSBar, NiceBar Lite, SnowBoard Lite, and LiveWP ports adapt AGPL-3.0 code
-from [`d1y/cyanide-ios`](https://github.com/d1y/cyanide-ios) and remain in the
-AGPL-covered tree.
-
-## JavaScript Tweaks
-
-Cyanide includes two JavaScript tweak runners contributed by Iggy05:
-
-- **QuickLoader** imports a local `.js` file from Files and exposes declared
-  `@param` values as settings rows.
-- **RepoTweaks Store** imports HTTPS JSON repositories and downloads selected
-  JavaScript tweaks from those sources. Cyanide seeds the zeroxjf source at
-  `https://zeroxjf.github.io/cyanide-repotweaks.json` by default.
-
-Only run scripts and repositories you trust; JavaScript tweaks can call Cyanide
-RemoteCall helpers and may destabilize SpringBoard if the script is buggy.
-
-
-</details>
+Forks and redistributed modifications must continue to comply with the applicable license terms and preserve upstream attribution.
