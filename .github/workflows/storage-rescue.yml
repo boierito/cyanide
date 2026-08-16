@@ -6,8 +6,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/storage-rescue.yml"
-      - ".github/scripts/inject_storage_rescue.py"
-      - "storage-rescue.js"
+      - "Cyanide/StorageRescueViewController.h"
+      - "Cyanide/StorageRescueViewController.m"
 
 permissions:
   contents: read
@@ -25,9 +25,6 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Inject Storage Rescue POSIX bridges
-        run: python3 .github/scripts/inject_storage_rescue.py
-
       - name: Build unsigned IPA
         run: |
           chmod +x scripts/build.sh
@@ -37,13 +34,12 @@ jobs:
         run: |
           mkdir -p build/storage-rescue-artifact
           cp -L build/Cyanide.ipa build/storage-rescue-artifact/Cyanide-StorageRescue.ipa
-          cp storage-rescue.js build/storage-rescue-artifact/storage-rescue.js
           ls -lh build/storage-rescue-artifact
 
       - name: Upload Storage Rescue
         uses: actions/upload-artifact@v4
         with:
-          name: Cyanide-StorageRescue
-          path: build/storage-rescue-artifact/*
+          name: Cyanide-StorageRescue-Native
+          path: build/storage-rescue-artifact/Cyanide-StorageRescue.ipa
           if-no-files-found: error
           compression-level: 0
