@@ -1,201 +1,183 @@
-<p align="center">
-  <img src="Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png" alt="Cyanide" width="150">
-</p>
+# Storage Rescue for iOS
 
-<h1 align="center">Cyanide — Storage Rescue Fork</h1>
+Storage Rescue is a dedicated iOS recovery utility for deleting data that can still be read or moved but refuses to be removed normally.
 
-<p align="center">
-  iOS kernel research toolkit based on DarkSword, with a verified storage-recovery workflow for files that normal file managers cannot unlink.
-</p>
+It is built from the Cyanide / DarkSword kernel research stack and was created after encountering a real filesystem tree where normal `unlink(2)` returned `EPERM` even though the files were readable, writable, and owned by `mobile`.
 
-> **Status:** public research fork. The original Cyanide project is no longer actively maintained by its original author. This fork preserves the original project and adds a practical, guarded Storage Rescue workflow.
+> **Destructive tool. There is no undo. Read the staging instructions before using it.**
 
-## Why this fork exists
+## The staging rule
 
-This fork was created after encountering a real iOS storage problem: a very large cache tree could be read, moved and inspected, but could not be deleted by normal jailed file managers even though ownership and POSIX permissions looked correct.
-
-The final solution was not another `chmod`, `chown`, trash implementation, or `NSFileManager` wrapper. The working path required a verified native `unlink(2)` flow plus inspection and repair of the metadata that can block namespace deletion on APFS.
-
-The result is **Storage Rescue**, integrated directly into Cyanide.
-
-## Storage Rescue
-
-Open:
-
-`Settings → Storage`
-
-The current solver uses a deliberately narrow safety boundary:
+Storage Rescue intentionally operates on **one hard-coded directory only**:
 
 ```text
 /var/mobile/Documents/test
 ```
 
-It will not operate outside that tree.
+Before opening the deletion workflow:
 
-### Recovery workflow
+1. Use Filza or another compatible filesystem manager.
+2. Move **only the files or folders you actually want to permanently delete** into `/var/mobile/Documents/test`.
+3. Do **not** move `/var/mobile/Documents` itself, your whole Library, an application container you still need, or unrelated system data.
+4. Return to Storage Rescue and run the verification workflow.
 
-Storage Rescue is intentionally staged:
+The app rejects deletion paths outside the hard-coded target. This is deliberate: Storage Rescue is not intended to be a general-purpose root file manager.
 
-1. **Prepare Access**
-   - Starts or reuses the DarkSword kernel read/write primitive.
-   - Requests a SpringBoard-issued root read/write sandbox extension.
-   - Verifies access before continuing.
+## Workflow
 
-2. **Scan Target**
-   - Walks the target tree without modifying it.
-   - Counts files and directories.
-   - Reports logical and allocated size.
+The app launches directly into Storage Rescue. There are no tweak-store, package, source, or general Cyanide screens in the dedicated build.
 
-3. **Prove One Real Delete**
-   - Selects one real file from the target tree.
-   - Attempts a native `unlink(2)`.
-   - Can request Apple's `com.apple.private.safe-move.receive` extension when needed.
-   - Inspects BSD/APFS flags on the file and its parent chain.
-   - Detects blocking flags such as:
-     - `UF_IMMUTABLE`
-     - `UF_APPEND`
-     - `UF_NOUNLINK`
-     - `UF_DATAVAULT`
-     - `SF_IMMUTABLE`
-     - `SF_APPEND`
-     - `SF_RESTRICTED`
-     - `SF_NOUNLINK`
-   - Tries normal `chflags()` first.
-   - Falls back to a guarded KRW metadata repair only when the APFS vnode layout can be cross-validated against `stat()` / `fstat()`.
-   - Checks `com.apple.macl` where relevant.
-   - Declares success only after `lstat()` confirms `ENOENT`.
+Use the actions in this order:
 
-4. **DELETE Entire Test Directory**
-   - Remains locked until step 3 has physically removed and verified one original file.
-   - Uses `unlink()` for files and `rmdir()` for directories.
-   - Stops instead of blindly continuing through repeated failures.
-   - Measures free space before and after the operation.
+### 1. Prepare Access
 
-The important distinction is that the UI does **not** treat `sandbox_check == ALLOW`, `isWritableFileAtPath:`, or `isDeletableFileAtPath:` as proof of success. The file must actually disappear from the filesystem namespace.
+Initializes or recovers the DarkSword kernel read/write primitive and obtains the filesystem access required by the recovery flow.
 
-## KRW safety guard
+The Storage Rescue implementation does **not** use the older aggressive `patch_sandbox_ext()` path that was found to be unstable during development.
 
-The metadata-repair path is intentionally conservative.
+### 2. Scan Target
 
-Before writing APFS metadata, Cyanide obtains the vnode for an already-open file descriptor and validates the filesystem node against userspace metadata. UID, GID, mode and BSD flags must all match the corresponding `stat`/`fstat` values.
+Recursively scans `/var/mobile/Documents/test` using filesystem APIs and reports:
 
-If that validation fails, the solver logs:
+- file count
+- directory count
+- logical size
+- allocated size
+- scan errors
+
+Scanning does not delete anything.
+
+### 3. Prove One Real Delete
+
+Before mass deletion is enabled, Storage Rescue must successfully remove one original staged file and verify that it is physically gone.
+
+The proof is not based on a sandbox permission query or an Objective-C `isDeletable` result. Success requires an actual deletion followed by:
 
 ```text
-KRW GUARD ABORT
+lstat(path) -> ENOENT
 ```
 
-and performs **no kernel write** for that object.
+The recovery path can evaluate and repair deletion-blocking filesystem state, including BSD/APFS flags such as:
 
-After a repair, the value is read back and the inode and other metadata are checked again before deletion is attempted.
+- `UF_IMMUTABLE`
+- `UF_APPEND`
+- `UF_NOUNLINK`
+- `UF_DATAVAULT`
+- `SF_IMMUTABLE`
+- `SF_APPEND`
+- `SF_RESTRICTED`
+- `SF_NOUNLINK`
 
-This is important because APFS structure offsets are version-sensitive; a guessed write is not an acceptable recovery strategy.
+It can also evaluate the relevant sandbox-extension path and `com.apple.macl` metadata when needed.
 
-## What this is for
+### Guarded KRW repair
 
-Storage Rescue is intended for recovery/debugging cases where:
+If normal metadata operations are rejected and kernel read/write is required, Storage Rescue does not blindly write a hard-coded vnode field.
 
-- a cache or temporary-data tree is consuming significant storage;
-- the files are visible and readable;
-- ownership and normal POSIX permissions appear valid;
-- standard deletion APIs or jailed file managers still return `EPERM` or otherwise fail;
-- you control the device and understand what is being removed.
+Before modifying the APFS BSD flags field it cross-checks the pinned vnode/fsnode against the userspace `stat` result, including:
 
-It is **not** intended as a generic "delete anything on iOS" button. The hard path boundary exists on purpose.
+- UID
+- GID
+- mode
+- BSD flags
+- inode identity during verification
 
-## Current implementation notes
+If the expected layout does not agree, the operation stops with a guard failure and no delete is attempted.
 
-The solver currently uses:
+### 4. Delete Entire Test Directory
 
-- DarkSword kernel R/W;
-- Cyanide's vnode/APFS helpers;
-- SpringBoard RemoteCall;
-- sandbox extensions;
-- native `unlink(2)` and `rmdir(2)`;
-- BSD/APFS flag inspection and guarded repair;
-- xattr inspection for `com.apple.macl`;
-- post-operation filesystem verification.
+This action stays locked until step 3 has proven a real deletion.
 
-The original Cyanide tweak runner remains in the repository as well.
+Once unlocked, Storage Rescue processes the staged tree with filesystem deletion primitives:
 
-## Supported exploit window
+- `unlink(2)` for files and symlinks
+- `rmdir(2)` for directories
 
-The upstream Cyanide code targets the DarkSword-compatible iOS/iPadOS range documented by the original project. Kernel exploit compatibility is device- and OS-version-dependent and can change across builds.
+It verifies failures and stops rather than continuing indefinitely when the recovery mechanism is no longer working.
 
-Do not assume that a build working on one device/OS combination implies compatibility with another.
+## Why `write` is not enough
+
+Being able to write file contents does not necessarily mean the process can remove the directory entry. During development, both Cyanide and SpringBoard could read/write the test tree while real `unlink()` calls still returned:
+
+```text
+EPERM (Operation not permitted)
+```
+
+Likewise, a basic `sandbox_check(..., "file-write-unlink", ...)` query reported `ALLOW` for processes whose real syscall still failed. For that reason, Storage Rescue treats the actual syscall plus `ENOENT` verification as the source of truth.
+
+## Safety model
+
+The dedicated build is intentionally narrow:
+
+- hard boundary: `/var/mobile/Documents/test`
+- no arbitrary path picker
+- no recursive delete outside that boundary
+- mass deletion locked until one real file is removed and verified
+- no automatic `patch_sandbox_ext()` kernel mutation
+- guarded APFS metadata repair
+- no inherited-method swizzling for the Storage Rescue UI
+- user must manually stage the intended data first
+
+Symlinks are treated as filesystem entries and are not followed for the kernel metadata repair path.
+
+## Real-world validation
+
+The recovery flow was developed against a real cache tree containing more than 100,000 files and tens of gigabytes of allocated data. The final guarded solver successfully removed files that previously returned `EPERM` through both local and SpringBoard `unlink()` attempts.
+
+This does not mean every iOS version, device, filesystem state, or corruption scenario is supported. Kernel offsets and exploit behavior are version/device dependent.
+
+## Install
+
+Prebuilt unsigned IPAs are published under GitHub Releases when available.
+
+The IPA still needs to be signed/sideloaded using a compatible method for the target device. Storage Rescue does not include an Apple distribution signature.
 
 ## Build
-
-The repository includes the normal Cyanide build script:
 
 ```sh
 ./scripts/build.sh
 ```
 
-It produces an unsigned IPA at:
+The build script writes the unsigned application to:
 
 ```text
 build/Cyanide.ipa
 ```
 
-A dedicated GitHub Actions workflow is also included:
+The `Storage Rescue IPA` GitHub Actions workflow packages that binary as `Storage-Rescue.ipa`.
 
-```text
-.github/workflows/storage-rescue.yml
-```
+## Development notes
 
-The workflow builds and uploads an unsigned Storage Rescue IPA artifact.
+The original problem was not solved by:
 
-Equivalent manual build:
+- `chmod`
+- `chown`
+- moving the tree within the same APFS volume
+- `NSFileManager removeItemAtPath:`
+- local `unlink()` with a normal read/write sandbox extension
+- SpringBoard RemoteCall `unlink()`
+- trusting `sandbox_check()` alone
 
-```sh
-xcodebuild \
-  -project Cyanide.xcodeproj \
-  -scheme Cyanide \
-  -sdk iphoneos \
-  -configuration Debug \
-  CODE_SIGNING_ALLOWED=NO \
-  build
-```
+The working recovery path was kept behind explicit validation checks because incorrect vnode/APFS writes can panic or reboot the device.
 
-You still need an appropriate signing/sideloading method to install the resulting application on a device.
+## Credits
 
-## Important warning
+Storage Rescue is built on work from the Cyanide and DarkSword ecosystem.
 
-This repository contains low-level iOS kernel and filesystem research code.
+- [`zeroxjf`](https://github.com/zeroxjf) — Cyanide project and integration work this fork derives from.
+- [`opa334`](https://github.com/opa334) — original DarkSword kernel exploit work, ChOma and XPF components.
+- [`wh1te4ever`](https://github.com/wh1te4ever) — `darksword-kexploit-fun` / RemoteCall work used by Cyanide.
+- [`rooootdev`](https://github.com/rooootdev) — exploit behavior referenced by the Cyanide project for reliability work.
+- Cyanide's upstream contributors and the researchers credited in the original project history.
 
-Incorrect filesystem metadata writes can corrupt data or make a device unstable. Keep backups of anything important. Do not remove system files simply because the tool can access them, and do not weaken the path guards without understanding the consequences.
-
-Storage Rescue was designed around the principle: **prove one real deletion safely before allowing a recursive operation**.
-
-## Project lineage and credits
-
-This repository is a fork and builds on substantial work by other researchers and developers.
-
-- [`zeroxjf/cyanide`](https://github.com/zeroxjf/cyanide) — original Cyanide project and UI/tweak framework.
-- [`opa334/darksword-kexploit`](https://github.com/opa334/darksword-kexploit) — DarkSword kernel R/W primitive and related research.
-- [`wh1te4ever/darksword-kexploit-fun`](https://github.com/wh1te4ever/darksword-kexploit-fun) — RemoteCall-based experimentation used by Cyanide.
-- [`d1y/cyanide-ios`](https://github.com/d1y/cyanide-ios) — additional Cyanide-related AGPL work used by upstream ports.
-- [`kolbicz/DarkSword-Tweaks`](https://github.com/kolbicz/DarkSword-Tweaks) — DarkSword tweak research used by upstream Cyanide.
-- `rooootdev`, `neonmodder123`, `rpetrich`, Julio Verne, `tomt000`, `YangJiiii`, `@Little_34306`, `ezzuldinSt` and the other contributors credited by the original Cyanide project.
-
-The Storage Rescue implementation in this fork was developed from a real recovery/debugging case and integrated on top of those existing primitives.
-
-## Contributing
-
-Useful contributions include:
-
-- testing on additional supported device / iOS combinations;
-- documenting reproducible `EPERM` filesystem cases;
-- improving metadata validation before KRW writes;
-- reducing reliance on hard-coded structure assumptions;
-- adding tests that prove a deletion actually occurred rather than trusting permission checks;
-- improving error reporting without weakening safety boundaries.
-
-When reporting a Storage Rescue issue, include the relevant Activity log, iOS version, device model, and the exact stage that failed. Avoid uploading personal file contents.
+The repository history is intentionally preserved so the provenance of the exploit, RemoteCall, and supporting research remains visible.
 
 ## License
 
-This repository is licensed under **AGPL-3.0**, consistent with the upstream project. See [`LICENSE`](LICENSE).
+This repository remains licensed under **AGPL-3.0**. See `LICENSE`.
 
-Forks and redistributed modifications must continue to comply with the applicable license terms and preserve upstream attribution.
+## Disclaimer
+
+Storage Rescue modifies filesystem metadata and permanently removes files. Kernel exploitation and incorrect filesystem metadata changes can crash, panic, or reboot a device and may cause data loss.
+
+Only stage data you have deliberately chosen to destroy, keep backups of anything important, and do not modify the hard-coded safety boundary unless you understand the consequences.
