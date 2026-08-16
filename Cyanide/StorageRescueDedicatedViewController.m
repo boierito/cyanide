@@ -1,4 +1,5 @@
 #import "StorageRescueDedicatedViewController.h"
+#import <math.h>
 
 static NSString * const SRDedicatedTarget = @"/var/mobile/Documents/test";
 static NSString * const SRInstructionsSeenKey = @"storageRescue.dedicated.instructionsSeen.v1";
@@ -32,7 +33,7 @@ static NSString * const SRInstructionsSeenKey = @"storageRescue.dedicated.instru
     if ([defaults boolForKey:SRInstructionsSeenKey]) return;
 
     NSString *message = [NSString stringWithFormat:
-        @"Before using Storage Rescue, use Filza or another filesystem manager to move ONLY the files or folders you want permanently removed into:\n\n%@\n\nDo not move /var/mobile/Documents itself, your whole Library, or unrelated data. Storage Rescue is intentionally restricted to this folder.",
+        @"Before using Storage Rescue, use Filza or another compatible filesystem manager to move ONLY the files or folders you want permanently removed into:\n\n%@\n\nDo not move /var/mobile/Documents itself, your whole Library, or unrelated data. Storage Rescue is intentionally restricted to this folder.",
         SRDedicatedTarget];
 
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Prepare the target folder first"
