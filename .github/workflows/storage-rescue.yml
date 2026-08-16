@@ -9,6 +9,7 @@ on:
       - "Cyanide/StorageRescueViewController.h"
       - "Cyanide/StorageRescueViewController.m"
       - "Cyanide/StorageRescueRemoteTest.m"
+      - "Cyanide/StorageRescuePermissionProbe.m"
       - "Cyanide/StorageRescueUI.m"
 
 permissions:
