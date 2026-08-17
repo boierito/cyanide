@@ -1,14 +1,14 @@
 // Storage Cleaner product identity.
-// The internal Xcode product intentionally remains Cyanide.app because the
-// inherited target and runtime linkage depend on that binary name.
+// Keep the runtime bundle identity used by the last on-device build that
+// successfully completed access and displayed scan results. The visible name
+// remains Storage Cleaner; only the process identity is restored for DarkSword
+// compatibility testing.
 
-PRODUCT_BUNDLE_IDENTIFIER = com.ai.storageCleaner
-MARKETING_VERSION = 1.1.2
-CURRENT_PROJECT_VERSION = 6
+PRODUCT_BUNDLE_IDENTIFIER = com.boierito.cyanide
+MARKETING_VERSION = 1.1.3
+CURRENT_PROJECT_VERSION = 7
 INFOPLIST_KEY_CFBundleDisplayName = Storage Cleaner
 INFOPLIST_KEY_CFBundleName = StorageCleaner
 
 // Do not ship the inherited Cyanide artwork as this fork's product icon.
-// Leaving the app-icon asset name empty lets sideloaded builds use the platform
-// fallback instead of presenting the old Cyanide icon.
 ASSETCATALOG_COMPILER_APPICON_NAME =
