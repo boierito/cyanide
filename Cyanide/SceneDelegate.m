@@ -1,10 +1,10 @@
 //
 //  SceneDelegate.m
-//  Storage Cleaner dedicated fork
+//  Storage Cleaner progressive test branch
 //
 
 #import "SceneDelegate.h"
-#import "StorageRescueCleanupViewController.h"
+#import "StorageCleanerProgressiveViewController.h"
 
 @implementation SceneDelegate
 
@@ -17,7 +17,7 @@ willConnectToSession:(UISceneSession *)session
     UIWindowScene *windowScene = (UIWindowScene *)scene;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
 
-    StorageRescueCleanupViewController *root = [[StorageRescueCleanupViewController alloc] init];
+    StorageCleanerProgressiveViewController *root = [[StorageCleanerProgressiveViewController alloc] init];
     UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:root];
     navigation.navigationBar.prefersLargeTitles = YES;
 
