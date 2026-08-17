@@ -10,7 +10,7 @@
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-    self.title = @"How It Works";
+    self.title = @"Help & Credits";
     self.view.backgroundColor = UIColor.systemGroupedBackgroundColor;
 
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
@@ -28,8 +28,8 @@
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     stack.axis = UILayoutConstraintAxisVertical;
     stack.alignment = UIStackViewAlignmentFill;
-    stack.spacing = 14.0;
-    stack.layoutMargins = UIEdgeInsetsMake(24.0, 20.0, 34.0, 20.0);
+    stack.spacing = 12.0;
+    stack.layoutMargins = UIEdgeInsetsMake(22.0, 20.0, 34.0, 20.0);
     stack.layoutMarginsRelativeArrangement = YES;
     [scroll addSubview:stack];
     self.stackView = stack;
@@ -46,70 +46,68 @@
         [stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor],
     ]];
 
-    UIImageView *heroIcon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"externaldrive.badge.checkmark"]];
-    heroIcon.translatesAutoresizingMaskIntoConstraints = NO;
-    heroIcon.contentMode = UIViewContentModeScaleAspectFit;
-    heroIcon.tintColor = UIColor.systemBlueColor;
-    [heroIcon.heightAnchor constraintEqualToConstant:54.0].active = YES;
-    [stack addArrangedSubview:heroIcon];
-
-    UILabel *title = [self labelWithText:@"You stay in control of every cleanup"
-                                    font:[UIFont preferredFontForTextStyle:UIFontTextStyleTitle2]
-                                   color:UIColor.labelColor];
-    title.font = [UIFont systemFontOfSize:title.font.pointSize weight:UIFontWeightBold];
-    title.textAlignment = NSTextAlignmentCenter;
+    UILabel *title = [self heading:@"How it works" style:UIFontTextStyleTitle2];
     [stack addArrangedSubview:title];
 
-    UILabel *intro = [self labelWithText:@"Storage Rescue does not clean anything automatically. First enable access, then review what is using space, select what you want to remove, and confirm the cleanup."
-                                    font:[UIFont preferredFontForTextStyle:UIFontTextStyleBody]
-                                   color:UIColor.secondaryLabelColor];
-    intro.textAlignment = NSTextAlignmentCenter;
-    [stack addArrangedSubview:intro];
+    [stack addArrangedSubview:[self cardWithTitle:@"Apps"
+                                           body:@"The app starts storage access automatically, then scans each installed app's Library/Caches and tmp folders. Results appear progressively as each app finishes scanning. Nothing is removed until you select items and confirm cleanup."]];
 
-    [stack setCustomSpacing:24.0 afterView:intro];
+    [stack addArrangedSubview:[self cardWithTitle:@"System Cache"
+                                           body:@"System Cache is intentionally separate from app cache/temp. It shows CacheDelete leftovers already managed by iOS. These entries are not presented as normal apps."]];
 
-    [stack addArrangedSubview:[self cardWithIcon:@"shield.lefthalf.filled"
-                                          title:@"1. Enable access"
-                                           body:@"This is required once each time the app is opened. It only allows Storage Rescue to inspect cache locations. No files are removed at this step."
-                                          color:UIColor.systemBlueColor]];
+    [stack addArrangedSubview:[self cardWithTitle:@"Protected Cleanup"
+                                           body:@"Protected Cleanup is not a normal cleaning category. It is the advanced fallback used only when iOS refuses a normal deletion or when System Cache entries have been staged for verified removal. That is why Rescue is no longer a main tab."]];
 
-    [stack addArrangedSubview:[self cardWithIcon:@"magnifyingglass"
-                                          title:@"2. Review what is taking space"
-                                           body:@"The cleanup screen shows three areas: Apps for normal temporary cache, iOS Leftovers for cache already abandoned by the system, and Rescue for protected cleanup when normal deletion is blocked."
-                                          color:UIColor.systemIndigoColor]];
+    [stack setCustomSpacing:24.0 afterView:stack.arrangedSubviews.lastObject];
+    [stack addArrangedSubview:[self heading:@"FAQ" style:UIFontTextStyleTitle3]];
 
-    [stack addArrangedSubview:[self cardWithIcon:@"checkmark.circle.fill"
-                                          title:@"3. Select only what you want"
-                                           body:@"Tap individual apps or leftover items to select them. Storage Rescue shows the amount of storage associated with your selection before any destructive action is available."
-                                          color:UIColor.systemGreenColor]];
+    [stack addArrangedSubview:[self cardWithTitle:@"What can be deleted?"
+                                           body:@"For apps, only Library/Caches and tmp are in scope. Photos, documents, messages, credentials, user-created files and normal application data are outside the app-cleaning path."]];
 
-    [stack addArrangedSubview:[self cardWithIcon:@"trash.fill"
-                                          title:@"4. Confirm the cleanup"
-                                           body:@"Normal app cache is removed directly. iOS leftovers are moved to Rescue first, where deletion is verified before the full protected cleanup can run."
-                                          color:UIColor.systemOrangeColor]];
+    [stack addArrangedSubview:[self cardWithTitle:@"Why does access start automatically?"
+                                           body:@"The cleaner cannot inspect the relevant storage paths until the existing Cyanide/DarkSword access flow succeeds. The same backend is used as before; the new UI only starts it automatically when the cleaner opens."]];
 
-    [stack setCustomSpacing:22.0 afterView:stack.arrangedSubviews.lastObject];
+    [stack addArrangedSubview:[self cardWithTitle:@"Why can scanning still take time?"
+                                           body:@"Some apps contain tens of thousands of files. The cleaner now scans several app containers concurrently and inserts each completed result immediately instead of waiting for every app to finish."]];
 
-    [stack addArrangedSubview:[self cardWithIcon:@"checkmark.shield.fill"
-                                          title:@"What Storage Rescue does not touch"
-                                           body:@"App cleanup stays inside temporary cache folders. Photos, documents, messages, logins and normal app data are outside the cleanup scope. Rescue is restricted to its dedicated staging area."
-                                          color:UIColor.systemGreenColor]];
+    [stack addArrangedSubview:[self cardWithTitle:@"How do sorting and search work?"
+                                           body:@"Use the sort control to order by size or name, in either direction. Search matches application names and bundle identifiers. Pull down on the list to rescan."]];
 
-    UILabel *tip = [self labelWithText:@"Tip: close an app before clearing its cache. Some apps immediately recreate temporary files while they are running."
-                                  font:[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]
-                                 color:UIColor.secondaryLabelColor];
-    tip.textAlignment = NSTextAlignmentCenter;
-    [stack addArrangedSubview:tip];
+    [stack addArrangedSubview:[self cardWithTitle:@"What happens if normal deletion is denied?"
+                                           body:@"The original protected cleanup path remains available from the More menu. It keeps the solver and low-level backend separate from the normal browsing experience."]];
+
+    [stack setCustomSpacing:24.0 afterView:stack.arrangedSubviews.lastObject];
+    [stack addArrangedSubview:[self heading:@"Credits" style:UIFontTextStyleTitle3]];
+
+    NSString *credits = @"zeroxjf — Cyanide project and integration work this fork derives from.\n\n"
+                         "opa334 — original DarkSword kernel exploit work, ChOma and XPF components.\n\n"
+                         "wh1te4ever — darksword-kexploit-fun / RemoteCall work used by Cyanide.\n\n"
+                         "rooootdev — exploit behavior referenced by Cyanide for reliability work.\n\n"
+                         "YangJiiii / 3105 — reference for the deliberately limited per-app cache-cleaner model.\n\n"
+                         "Cyanide upstream contributors and the researchers credited in the original project history.";
+    [stack addArrangedSubview:[self cardWithTitle:@"Upstream & research" body:credits]];
+
+    [stack addArrangedSubview:[self cardWithTitle:@"AI Slop Disclosure"
+                                           body:@"Yes, this is AI Slop. The current product/UI iteration was made with GPT-5.6 Sol. The underlying Cyanide, DarkSword, XPF, ChOma and 3105 work remains credited above."]];
 
     NSDictionary *info = NSBundle.mainBundle.infoDictionary;
     NSString *version = info[@"CFBundleShortVersionString"] ?: @"?";
     NSString *build = info[@"CFBundleVersion"] ?: @"?";
     NSString *bundleID = NSBundle.mainBundle.bundleIdentifier ?: @"?";
-    UILabel *versionLabel = [self labelWithText:[NSString stringWithFormat:@"Storage Rescue %@ (%@)\n%@", version, build, bundleID]
+    UILabel *versionLabel = [self labelWithText:[NSString stringWithFormat:@"Storage Cleaner %@ (%@)\n%@", version, build, bundleID]
                                             font:[UIFont preferredFontForTextStyle:UIFontTextStyleCaption1]
                                            color:UIColor.tertiaryLabelColor];
     versionLabel.textAlignment = NSTextAlignmentCenter;
     [stack addArrangedSubview:versionLabel];
+}
+
+- (UILabel *)heading:(NSString *)text style:(UIFontTextStyle)style
+{
+    UILabel *label = [self labelWithText:text
+                                    font:[UIFont preferredFontForTextStyle:style]
+                                   color:UIColor.labelColor];
+    label.font = [UIFont systemFontOfSize:label.font.pointSize weight:UIFontWeightBold];
+    return label;
 }
 
 - (UILabel *)labelWithText:(NSString *)text font:(UIFont *)font color:(UIColor *)color
@@ -123,17 +121,12 @@
     return label;
 }
 
-- (UIView *)cardWithIcon:(NSString *)iconName title:(NSString *)title body:(NSString *)body color:(UIColor *)color
+- (UIView *)cardWithTitle:(NSString *)title body:(NSString *)body
 {
     UIView *card = [[UIView alloc] initWithFrame:CGRectZero];
     card.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
-    card.layer.cornerRadius = 18.0;
+    card.layer.cornerRadius = 16.0;
     card.layer.cornerCurve = kCACornerCurveContinuous;
-
-    UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:iconName]];
-    icon.translatesAutoresizingMaskIntoConstraints = NO;
-    icon.tintColor = color;
-    icon.contentMode = UIViewContentModeScaleAspectFit;
 
     UILabel *titleLabel = [self labelWithText:title
                                          font:[UIFont preferredFontForTextStyle:UIFontTextStyleHeadline]
@@ -142,26 +135,19 @@
                                         font:[UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline]
                                        color:UIColor.secondaryLabelColor];
 
-    UIStackView *textStack = [[UIStackView alloc] initWithArrangedSubviews:@[titleLabel, bodyLabel]];
-    textStack.axis = UILayoutConstraintAxisVertical;
-    textStack.spacing = 4.0;
-
-    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[icon, textStack]];
-    row.translatesAutoresizingMaskIntoConstraints = NO;
-    row.axis = UILayoutConstraintAxisHorizontal;
-    row.alignment = UIStackViewAlignmentTop;
-    row.spacing = 13.0;
-    row.layoutMargins = UIEdgeInsetsMake(16.0, 16.0, 16.0, 16.0);
-    row.layoutMarginsRelativeArrangement = YES;
-    [card addSubview:row];
+    UIStackView *content = [[UIStackView alloc] initWithArrangedSubviews:@[titleLabel, bodyLabel]];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    content.axis = UILayoutConstraintAxisVertical;
+    content.spacing = 5.0;
+    content.layoutMargins = UIEdgeInsetsMake(15.0, 16.0, 15.0, 16.0);
+    content.layoutMarginsRelativeArrangement = YES;
+    [card addSubview:content];
 
     [NSLayoutConstraint activateConstraints:@[
-        [icon.widthAnchor constraintEqualToConstant:30.0],
-        [icon.heightAnchor constraintEqualToConstant:30.0],
-        [row.leadingAnchor constraintEqualToAnchor:card.leadingAnchor],
-        [row.trailingAnchor constraintEqualToAnchor:card.trailingAnchor],
-        [row.topAnchor constraintEqualToAnchor:card.topAnchor],
-        [row.bottomAnchor constraintEqualToAnchor:card.bottomAnchor],
+        [content.leadingAnchor constraintEqualToAnchor:card.leadingAnchor],
+        [content.trailingAnchor constraintEqualToAnchor:card.trailingAnchor],
+        [content.topAnchor constraintEqualToAnchor:card.topAnchor],
+        [content.bottomAnchor constraintEqualToAnchor:card.bottomAnchor],
     ]];
     return card;
 }

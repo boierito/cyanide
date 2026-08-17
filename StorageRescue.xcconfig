@@ -1,10 +1,12 @@
-// Storage Rescue product identity.
-// Public identity/versioning is independent from upstream Cyanide. The internal
-// Xcode product name intentionally stays inherited because the original target
-// has linker paths tied to the Cyanide binary name.
+// Storage Cleaner product identity.
+// Keep the runtime bundle identity used by the working main build. The access,
+// scan, cleanup, staging and solver implementations are the main backend.
 
 PRODUCT_BUNDLE_IDENTIFIER = com.boierito.cyanide
-MARKETING_VERSION = 1.0.2
-CURRENT_PROJECT_VERSION = 3
-INFOPLIST_KEY_CFBundleDisplayName = Storage Rescue
-INFOPLIST_KEY_CFBundleName = StorageRescue
+MARKETING_VERSION = 1.1.5
+CURRENT_PROJECT_VERSION = 9
+INFOPLIST_KEY_CFBundleDisplayName = Storage Cleaner
+INFOPLIST_KEY_CFBundleName = StorageCleaner
+
+// Do not ship the inherited Cyanide artwork as this fork's product icon.
+ASSETCATALOG_COMPILER_APPICON_NAME =
