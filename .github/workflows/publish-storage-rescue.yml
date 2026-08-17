@@ -1,11 +1,7 @@
-name: Publish Storage Rescue v1.0.0
+name: Publish Storage Rescue
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/publish-storage-rescue.yml"
 
 permissions:
   contents: write
@@ -27,56 +23,63 @@ jobs:
         run: |
           chmod +x scripts/build.sh
           ./scripts/build.sh
-          cp -L build/Cyanide.ipa build/Storage-Rescue.ipa
-          ls -lh build/Storage-Rescue.ipa
+          cp -L build/Storage-Rescue.ipa build/Storage-Rescue-release.ipa
+          ls -lh build/Storage-Rescue-release.ipa
+
+      - name: Read product identity
+        id: identity
+        run: |
+          APP="build/DerivedData/Build/Products/Debug-iphoneos/StorageRescue.app"
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Info.plist")
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
+          test "$BUNDLE_ID" = "io.github.boierito.storagerescue"
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.identity.outputs.version }}
+          BUILD: ${{ steps.identity.outputs.build }}
+          BUNDLE_ID: ${{ steps.identity.outputs.bundle_id }}
         run: |
-          TAG="storage-rescue-v1.0.0"
-          cat > /tmp/release-notes.md <<'EOF'
-          # Storage Rescue v1.0.0
+          TAG="storage-rescue-v${VERSION}"
+          mv build/Storage-Rescue-release.ipa "build/Storage-Rescue-${VERSION}.ipa"
 
-          First public dedicated release of Storage Rescue.
+          cat > /tmp/release-notes.md <<EOF
+          # Storage Rescue ${VERSION}
 
-          Storage Rescue is an iOS recovery utility built from Cyanide/DarkSword for removing staged filesystem data when normal deletion returns `EPERM`.
+          Storage Rescue is a dedicated iOS cache-cleanup and recovery utility.
 
-          ## Before using it
+          **Bundle ID:** \`${BUNDLE_ID}\`  
+          **Version:** \`${VERSION}\`  
+          **Build:** \`${BUILD}\`
 
-          Move **only** the files or folders you intentionally want to permanently delete into:
+          ## User workflow
 
-          ```text
-          /var/mobile/Documents/test
-          ```
+          - **App Cache** scans only each app's \`Library/Caches\` and \`tmp\` folders and clears selected temporary data in place.
+          - **Protected Cache** detects CacheDelete leftovers when that system-managed location exists and moves selected entries into Rescue.
+          - **Rescue** handles staged cache that normal deletion could not remove and keeps full cleanup locked until one real deletion is verified.
 
-          Do not move `/var/mobile/Documents` itself, your entire Library, or unrelated data. The app is intentionally restricted to this hard-coded directory.
-
-          ## Recommended flow
-
-          1. Prepare Access
-          2. Scan Target
-          3. Prove One Real Delete
-          4. Delete Entire Test Directory
-
-          Mass deletion remains locked until an original staged file is actually deleted and verified with `lstat() -> ENOENT`.
-
-          The solver includes guarded APFS/BSD-flag recovery and refuses the kernel metadata write if vnode/fsnode validation does not match the userspace metadata.
+          Storage Rescue automatically creates its private Rescue area when access is enabled. Moving protected data into Rescue does not free storage by itself; Rescue must complete the deletion.
 
           ## Installation
 
-          `Storage-Rescue.ipa` is unsigned. Sign/sideload it using a compatible method for your device.
+          \`Storage-Rescue-${VERSION}.ipa\` is unsigned and must be signed/sideloaded using a compatible method for the target device.
 
           ## Warning
 
-          This is destructive low-level filesystem tooling. There is no undo. Kernel exploitation and filesystem metadata changes can panic/reboot a device or cause data loss. Stage only data you have deliberately chosen to destroy.
+          This is destructive filesystem tooling. Review selections carefully, close apps before clearing their cache, and keep backups of important data.
           EOF
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release delete "$TAG" --yes --cleanup-tag
+            gh release upload "$TAG" "build/Storage-Rescue-${VERSION}.ipa" --clobber
+            gh release edit "$TAG" --title "Storage Rescue ${VERSION}" --notes-file /tmp/release-notes.md
+          else
+            gh release create "$TAG" "build/Storage-Rescue-${VERSION}.ipa" \
+              --target "$GITHUB_SHA" \
+              --title "Storage Rescue ${VERSION}" \
+              --notes-file /tmp/release-notes.md
           fi
-
-          gh release create "$TAG" build/Storage-Rescue.ipa \
-            --target "$GITHUB_SHA" \
-            --title "Storage Rescue v1.0.0" \
-            --notes-file /tmp/release-notes.md
