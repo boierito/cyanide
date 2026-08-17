@@ -39,6 +39,12 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Install build dependencies
+        run: |
+          brew install ldid
+          command -v ldid
+          ldid -h >/dev/null 2>&1 || true
+
       - name: Build unsigned IPA
         run: |
           chmod +x scripts/build.sh
