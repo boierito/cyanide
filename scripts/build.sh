@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build the dedicated Storage Rescue app for iphoneos and package the resulting
 # .app into a versioned IPA under build/. The public identity/version comes
-# from StorageRescue.xcconfig and is intentionally independent from upstream
-# Cyanide target defaults. The internal Xcode product remains Cyanide.app
+# exclusively from StorageRescue.xcconfig and is intentionally independent from
+# upstream Cyanide target defaults. The internal Xcode product remains Cyanide.app
 # because the inherited target has linker paths tied to that binary name.
 #
 # Run as: ./scripts/build.sh
@@ -34,8 +34,14 @@ SDK="${SDK:-iphoneos}"
 PROJECT="Cyanide.xcodeproj"
 DERIVED="$PWD/build/DerivedData"
 PRODUCT_DIR="$DERIVED/Build/Products/${CONFIG}-${SDK}"
+IDENTITY_CONFIG="$PWD/StorageRescue.xcconfig"
 XCODEBUILD_EXTRA=()
 XCCONFIG_ARGS=()
+
+read_xcconfig_value() {
+    local key="$1"
+    sed -nE "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*(.*[^[:space:]])[[:space:]]*$/\\1/p" "$IDENTITY_CONFIG" | tail -n 1
+}
 
 if [ "$SDK" = "iphonesimulator" ]; then
     XCODEBUILD_EXTRA=(ARCHS=arm64 ONLY_ACTIVE_ARCH=YES)
@@ -47,13 +53,28 @@ if [ "$SCHEME" = "CyanideVPhone" ]; then
 else
     APP_NAME="Cyanide.app"
     IPA_PREFIX="Storage-Rescue"
-    XCCONFIG_ARGS=(-xcconfig "$PWD/StorageRescue.xcconfig")
+    XCCONFIG_ARGS=(-xcconfig "$IDENTITY_CONFIG")
+
+    PUBLIC_BUNDLE_ID="$(read_xcconfig_value PRODUCT_BUNDLE_IDENTIFIER)"
+    PUBLIC_VERSION="$(read_xcconfig_value MARKETING_VERSION)"
+    PUBLIC_BUILD="$(read_xcconfig_value CURRENT_PROJECT_VERSION)"
+    PUBLIC_DISPLAY_NAME="$(read_xcconfig_value INFOPLIST_KEY_CFBundleDisplayName)"
+    PUBLIC_BUNDLE_NAME="$(read_xcconfig_value INFOPLIST_KEY_CFBundleName)"
+
+    for value_name in PUBLIC_BUNDLE_ID PUBLIC_VERSION PUBLIC_BUILD PUBLIC_DISPLAY_NAME PUBLIC_BUNDLE_NAME; do
+        if [ -z "${!value_name:-}" ]; then
+            echo "error: missing $value_name in $IDENTITY_CONFIG" >&2
+            exit 1
+        fi
+    done
 fi
 
 IPA_LATEST="$PWD/build/${IPA_PREFIX}.ipa"
 mkdir -p build
+BUILD_LOG="$PWD/build/xcodebuild.log"
 
 echo "==> xcodebuild ($SCHEME / $CONFIG / $SDK)"
+set +e
 xcodebuild \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
@@ -62,19 +83,19 @@ xcodebuild \
     -derivedDataPath "$DERIVED" \
     "${XCCONFIG_ARGS[@]}" \
     CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGNING_REQUIRED=NO \
     ${XCODEBUILD_EXTRA[@]+"${XCODEBUILD_EXTRA[@]}"} \
     build \
-    | xcbeautify --quiet 2>/dev/null \
-    || xcodebuild \
-         -project "$PROJECT" \
-         -scheme "$SCHEME" \
-         -sdk "$SDK" \
-         -configuration "$CONFIG" \
-         -derivedDataPath "$DERIVED" \
-         "${XCCONFIG_ARGS[@]}" \
-         CODE_SIGNING_ALLOWED=NO \
-         ${XCODEBUILD_EXTRA[@]+"${XCODEBUILD_EXTRA[@]}"} \
-         build
+    2>&1 | tee "$BUILD_LOG"
+XCODE_STATUS=${PIPESTATUS[0]}
+set -e
+
+if [ "$XCODE_STATUS" -ne 0 ]; then
+    echo "==> xcodebuild failed with status $XCODE_STATUS" >&2
+    echo "==> compiler/linker error summary" >&2
+    grep -E "(^|[[:space:]])(error:|fatal error:|Undefined symbols|duplicate symbol|ld: )" "$BUILD_LOG" | tail -n 160 >&2 || true
+    exit "$XCODE_STATUS"
+fi
 
 APP_PATH="$PRODUCT_DIR/$APP_NAME"
 if [ ! -d "$APP_PATH" ]; then
@@ -86,20 +107,20 @@ fi
 
 normalize_storage_rescue_plist() {
     local plist="$1"
-    python3 - "$plist" <<'PY'
+    python3 - "$plist" "$PUBLIC_DISPLAY_NAME" "$PUBLIC_BUNDLE_NAME" "$PUBLIC_BUNDLE_ID" "$PUBLIC_VERSION" "$PUBLIC_BUILD" <<'PY'
 import plistlib
 import sys
 
-path = sys.argv[1]
+path, display_name, bundle_name, bundle_id, version, build = sys.argv[1:]
 with open(path, "rb") as f:
     data = plistlib.load(f)
 
 data.update({
-    "CFBundleDisplayName": "Storage Rescue",
-    "CFBundleName": "StorageRescue",
-    "CFBundleIdentifier": "io.github.boierito.storagerescue",
-    "CFBundleShortVersionString": "1.2.0",
-    "CFBundleVersion": "120",
+    "CFBundleDisplayName": display_name,
+    "CFBundleName": bundle_name,
+    "CFBundleIdentifier": bundle_id,
+    "CFBundleShortVersionString": version,
+    "CFBundleVersion": build,
 })
 
 with open(path, "wb") as f:
