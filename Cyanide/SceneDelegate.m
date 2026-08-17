@@ -4,7 +4,7 @@
 //
 
 #import "SceneDelegate.h"
-#import "StorageRescueDedicatedViewController.h"
+#import "StorageRescueHomeViewController.h"
 
 @implementation SceneDelegate
 
@@ -17,7 +17,7 @@ willConnectToSession:(UISceneSession *)session
     UIWindowScene *windowScene = (UIWindowScene *)scene;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
 
-    StorageRescueDedicatedViewController *root = [[StorageRescueDedicatedViewController alloc] init];
+    StorageRescueHomeViewController *root = [[StorageRescueHomeViewController alloc] init];
     UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:root];
     navigation.navigationBar.prefersLargeTitles = YES;
 
