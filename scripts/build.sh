@@ -84,6 +84,15 @@ if [ ! -d "$APP_PATH" ]; then
     exit 1
 fi
 
+# The inherited Xcode target has a target-level display-name override that
+# survives Info.plist processing. Because this IPA is unsigned at this stage,
+# normalize the final packaged plist here so the installed app identity is
+# unambiguously Storage Rescue without renaming the linker-bound binary.
+if [ "$SCHEME" != "CyanideVPhone" ]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Storage Rescue" "$APP_PATH/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName StorageRescue" "$APP_PATH/Info.plist"
+fi
+
 if [ "$SDK" = "iphonesimulator" ]; then
     echo "==> simulator app $APP_PATH"
     exit 0
