@@ -3,11 +3,13 @@ name: Storage Rescue IPA
 on:
   workflow_dispatch:
   push:
-    branches: [main, "agent/storage-cleaner-ui"]
+    branches: [main, "agent/storage-cleaner-ui", "agent/progressive-cleaner-feedback"]
     paths:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
       - "scripts/build.sh"
+      - "Cyanide/StorageCleanerProgressiveViewController.h"
+      - "Cyanide/StorageCleanerProgressiveViewController.m"
       - "Cyanide/StorageRescueHomeViewController.h"
       - "Cyanide/StorageRescueHomeViewController.m"
       - "Cyanide/StorageRescueCleanupViewController.h"
