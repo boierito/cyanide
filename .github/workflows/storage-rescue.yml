@@ -40,17 +40,25 @@ jobs:
           chmod +x scripts/build.sh
           ./scripts/build.sh
 
-      - name: Verify product identity
+      - name: Verify final IPA identity
         run: |
-          APP="build/DerivedData/Build/Products/Debug-iphoneos/Cyanide.app"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$APP/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Info.plist"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APP/Info.plist")" = "Storage Rescue"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "io.github.boierito.storagerescue"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" = "1.1.0"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = "110"
+          rm -rf /tmp/storage-rescue-verify
+          mkdir -p /tmp/storage-rescue-verify
+          unzip -q -o build/Storage-Rescue.ipa -d /tmp/storage-rescue-verify
+          APP="/tmp/storage-rescue-verify/Payload/Cyanide.app"
+          PLIST="$APP/Info.plist"
+          test -f "$PLIST"
+          DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$PLIST")
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST")
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")
+          echo "Display name: $DISPLAY_NAME"
+          echo "Bundle ID: $BUNDLE_ID"
+          echo "Version: $VERSION ($BUILD)"
+          test "$DISPLAY_NAME" = "Storage Rescue"
+          test "$BUNDLE_ID" = "io.github.boierito.storagerescue"
+          test "$VERSION" = "1.1.0"
+          test "$BUILD" = "110"
 
       - name: Prepare artifact
         run: |
