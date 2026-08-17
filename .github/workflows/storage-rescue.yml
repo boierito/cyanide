@@ -6,8 +6,14 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/storage-rescue.yml"
+      - "StorageRescue.xcconfig"
+      - "scripts/build.sh"
       - "Cyanide/StorageRescueDedicatedViewController.h"
       - "Cyanide/StorageRescueDedicatedViewController.m"
+      - "Cyanide/StorageRescueGuideViewController.h"
+      - "Cyanide/StorageRescueGuideViewController.m"
+      - "Cyanide/StorageRescueRecoveryViewController.h"
+      - "Cyanide/StorageRescueRecoveryViewController.m"
       - "Cyanide/StorageRescueSolverViewController.h"
       - "Cyanide/StorageRescueSolverViewController.m"
       - "Cyanide/SceneDelegate.m"
@@ -34,10 +40,20 @@ jobs:
           chmod +x scripts/build.sh
           ./scripts/build.sh
 
+      - name: Verify product identity
+        run: |
+          APP="build/DerivedData/Build/Products/Debug-iphoneos/StorageRescue.app"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "io.github.boierito.storagerescue"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" = "1.1.0"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = "110"
+
       - name: Prepare artifact
         run: |
           mkdir -p build/storage-rescue-artifact
-          cp -L build/Cyanide.ipa build/storage-rescue-artifact/Storage-Rescue.ipa
+          cp -L build/Storage-Rescue.ipa build/storage-rescue-artifact/Storage-Rescue.ipa
           ls -lh build/storage-rescue-artifact
 
       - name: Upload Storage Rescue
