@@ -1,7 +1,11 @@
-name: Publish Storage Rescue
+name: Publish Storage Cleaner
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-storage-rescue.yml"
 
 permissions:
   contents: write
@@ -19,12 +23,17 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Install build dependencies
+        run: |
+          brew install ldid
+          command -v ldid
+
       - name: Build unsigned IPA
         run: |
           chmod +x scripts/build.sh
           ./scripts/build.sh
-          cp -L build/Storage-Rescue.ipa build/Storage-Rescue-release.ipa
-          ls -lh build/Storage-Rescue-release.ipa
+          cp -L build/Storage-Rescue.ipa build/Storage-Cleaner-release.ipa
+          ls -lh build/Storage-Cleaner-release.ipa
 
       - name: Read product identity
         id: identity
@@ -37,8 +46,8 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
           echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
-          test "$DISPLAY_NAME" = "Storage Rescue"
-          test "$BUNDLE_ID" = "io.github.boierito.storagerescue"
+          test "$DISPLAY_NAME" = "Storage Cleaner"
+          test "$BUNDLE_ID" = "com.boierito.cyanide"
 
       - name: Publish release
         env:
@@ -47,41 +56,37 @@ jobs:
           BUILD: ${{ steps.identity.outputs.build }}
           BUNDLE_ID: ${{ steps.identity.outputs.bundle_id }}
         run: |
-          TAG="storage-rescue-v${VERSION}"
-          mv build/Storage-Rescue-release.ipa "build/Storage-Rescue-${VERSION}.ipa"
+          TAG="storage-cleaner-v${VERSION}"
+          IPA="build/Storage-Cleaner-${VERSION}.ipa"
+          mv build/Storage-Cleaner-release.ipa "$IPA"
 
           cat > /tmp/release-notes.md <<EOF
-          # Storage Rescue ${VERSION}
+          # Storage Cleaner ${VERSION}
 
-          Storage Rescue is a dedicated iOS cache-cleanup and recovery utility with a guided, review-first workflow.
+          Functional baseline release before the next cleaner-performance iteration.
 
           **Bundle ID:** \`${BUNDLE_ID}\`  
           **Version:** \`${VERSION}\`  
           **Build:** \`${BUILD}\`
 
-          ## User workflow
+          ## Included
 
-          - **Apps** shows removable temporary cache from validated app containers and lets the user choose exactly which apps to clean.
-          - **iOS Leftovers** shows system cache that iOS has already set aside. Selected leftovers are moved into Rescue before deletion.
-          - **Rescue** handles staged cache when normal deletion is blocked and keeps full cleanup locked until one real deletion is verified.
-
-          The app now opens on a plain-language home screen, explains the three cleanup stages before the user starts, hides technical identifiers from the normal app list, and keeps troubleshooting details out of the primary flow.
+          - Storage Cleaner frontend with Apps and System Cache presentation.
+          - Gain Access / scanning / cleanup backend kept on the proven main implementation.
+          - Protected cleanup remains available as the advanced fallback.
+          - Runtime dependency validation for \`libxpf.dylib\`.
 
           ## Installation
 
-          \`Storage-Rescue-${VERSION}.ipa\` is unsigned and must be signed/sideloaded using a compatible method for the target device.
-
-          ## Warning
-
-          This is destructive filesystem tooling. Review selections carefully, close apps before clearing their cache, and keep backups of important data.
+          \`Storage-Cleaner-${VERSION}.ipa\` is unsigned and must be signed/sideloaded using a compatible method for the target device.
           EOF
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "build/Storage-Rescue-${VERSION}.ipa" --clobber
-            gh release edit "$TAG" --title "Storage Rescue ${VERSION}" --notes-file /tmp/release-notes.md
+            gh release upload "$TAG" "$IPA" --clobber
+            gh release edit "$TAG" --title "Storage Cleaner ${VERSION}" --notes-file /tmp/release-notes.md
           else
-            gh release create "$TAG" "build/Storage-Rescue-${VERSION}.ipa" \
+            gh release create "$TAG" "$IPA" \
               --target "$GITHUB_SHA" \
-              --title "Storage Rescue ${VERSION}" \
+              --title "Storage Cleaner ${VERSION}" \
               --notes-file /tmp/release-notes.md
           fi
