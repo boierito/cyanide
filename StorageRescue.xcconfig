@@ -4,7 +4,7 @@
 // has linker paths tied to the Cyanide binary name.
 
 PRODUCT_BUNDLE_IDENTIFIER = io.github.boierito.storagerescue
-MARKETING_VERSION = 1.1.0
-CURRENT_PROJECT_VERSION = 110
+MARKETING_VERSION = 1.2.0
+CURRENT_PROJECT_VERSION = 120
 INFOPLIST_KEY_CFBundleDisplayName = Storage Rescue
 INFOPLIST_KEY_CFBundleName = StorageRescue
