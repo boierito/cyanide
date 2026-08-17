@@ -29,7 +29,7 @@
     stack.axis = UILayoutConstraintAxisVertical;
     stack.alignment = UIStackViewAlignmentFill;
     stack.spacing = 14.0;
-    stack.layoutMargins = UIEdgeInsetsMake(24, 20, 32, 20);
+    stack.layoutMargins = UIEdgeInsetsMake(24.0, 20.0, 34.0, 20.0);
     stack.layoutMarginsRelativeArrangement = YES;
     [scroll addSubview:stack];
     self.stackView = stack;
@@ -50,17 +50,17 @@
     heroIcon.translatesAutoresizingMaskIntoConstraints = NO;
     heroIcon.contentMode = UIViewContentModeScaleAspectFit;
     heroIcon.tintColor = UIColor.systemBlueColor;
-    [heroIcon.heightAnchor constraintEqualToConstant:52.0].active = YES;
+    [heroIcon.heightAnchor constraintEqualToConstant:54.0].active = YES;
     [stack addArrangedSubview:heroIcon];
 
-    UILabel *title = [self labelWithText:@"Free storage without exposing filesystem internals"
+    UILabel *title = [self labelWithText:@"You stay in control of every cleanup"
                                     font:[UIFont preferredFontForTextStyle:UIFontTextStyleTitle2]
                                    color:UIColor.labelColor];
     title.font = [UIFont systemFontOfSize:title.font.pointSize weight:UIFontWeightBold];
     title.textAlignment = NSTextAlignmentCenter;
     [stack addArrangedSubview:title];
 
-    UILabel *intro = [self labelWithText:@"Storage Rescue separates ordinary app cache from protected leftovers. Start with the safest cleanup path; the low-level rescue flow is only used when normal deletion is blocked."
+    UILabel *intro = [self labelWithText:@"Storage Rescue does not clean anything automatically. First enable access, then review what is using space, select what you want to remove, and confirm the cleanup."
                                     font:[UIFont preferredFontForTextStyle:UIFontTextStyleBody]
                                    color:UIColor.secondaryLabelColor];
     intro.textAlignment = NSTextAlignmentCenter;
@@ -68,28 +68,38 @@
 
     [stack setCustomSpacing:24.0 afterView:intro];
 
-    [stack addArrangedSubview:[self cardWithIcon:@"app.fill"
-                                          title:@"1. App Cache"
-                                           body:@"Temporary files created by apps. Storage Rescue only touches Library/Caches and tmp inside a validated app container. Documents, photos, logins and normal app data are outside this scope."
+    [stack addArrangedSubview:[self cardWithIcon:@"shield.lefthalf.filled"
+                                          title:@"1. Enable access"
+                                           body:@"This is required once each time the app is opened. It only allows Storage Rescue to inspect cache locations. No files are removed at this step."
                                           color:UIColor.systemBlueColor]];
 
-    [stack addArrangedSubview:[self cardWithIcon:@"archivebox.fill"
-                                          title:@"2. Protected Cache"
-                                           body:@"Leftover cache already set aside by iOS. If it exists, you can select it and move it into the private Rescue area. Moving it is fast, but space is not freed until Rescue deletes it."
-                                          color:UIColor.systemOrangeColor]];
+    [stack addArrangedSubview:[self cardWithIcon:@"magnifyingglass"
+                                          title:@"2. Review what is taking space"
+                                           body:@"The cleanup screen shows three areas: Apps for normal temporary cache, iOS Leftovers for cache already abandoned by the system, and Rescue for protected cleanup when normal deletion is blocked."
+                                          color:UIColor.systemIndigoColor]];
 
-    [stack addArrangedSubview:[self cardWithIcon:@"lifepreserver.fill"
-                                          title:@"3. Rescue"
-                                           body:@"For staged data that still refuses normal deletion. Rescue first proves that one real cache file can be removed, then unlocks the full cleanup."
-                                          color:UIColor.systemRedColor]];
+    [stack addArrangedSubview:[self cardWithIcon:@"checkmark.circle.fill"
+                                          title:@"3. Select only what you want"
+                                           body:@"Tap individual apps or leftover items to select them. Storage Rescue shows the amount of storage associated with your selection before any destructive action is available."
+                                          color:UIColor.systemGreenColor]];
+
+    [stack addArrangedSubview:[self cardWithIcon:@"trash.fill"
+                                          title:@"4. Confirm the cleanup"
+                                           body:@"Normal app cache is removed directly. iOS leftovers are moved to Rescue first, where deletion is verified before the full protected cleanup can run."
+                                          color:UIColor.systemOrangeColor]];
 
     [stack setCustomSpacing:22.0 afterView:stack.arrangedSubviews.lastObject];
 
-    UIView *safety = [self cardWithIcon:@"checkmark.shield.fill"
-                                  title:@"Safety boundaries"
-                                   body:@"App cleanup stays inside cache folders. Protected cleanup only stages known CacheDelete leftovers. Rescue only operates inside its dedicated staging folder. Close apps before clearing their cache and review your selection before confirming."
-                                  color:UIColor.systemGreenColor];
-    [stack addArrangedSubview:safety];
+    [stack addArrangedSubview:[self cardWithIcon:@"checkmark.shield.fill"
+                                          title:@"What Storage Rescue does not touch"
+                                           body:@"App cleanup stays inside temporary cache folders. Photos, documents, messages, logins and normal app data are outside the cleanup scope. Rescue is restricted to its dedicated staging area."
+                                          color:UIColor.systemGreenColor]];
+
+    UILabel *tip = [self labelWithText:@"Tip: close an app before clearing its cache. Some apps immediately recreate temporary files while they are running."
+                                  font:[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]
+                                 color:UIColor.secondaryLabelColor];
+    tip.textAlignment = NSTextAlignmentCenter;
+    [stack addArrangedSubview:tip];
 
     NSDictionary *info = NSBundle.mainBundle.infoDictionary;
     NSString *version = info[@"CFBundleShortVersionString"] ?: @"?";
@@ -117,7 +127,7 @@
 {
     UIView *card = [[UIView alloc] initWithFrame:CGRectZero];
     card.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
-    card.layer.cornerRadius = 16.0;
+    card.layer.cornerRadius = 18.0;
     card.layer.cornerCurve = kCACornerCurveContinuous;
 
     UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:iconName]];
@@ -141,7 +151,7 @@
     row.axis = UILayoutConstraintAxisHorizontal;
     row.alignment = UIStackViewAlignmentTop;
     row.spacing = 13.0;
-    row.layoutMargins = UIEdgeInsetsMake(16, 16, 16, 16);
+    row.layoutMargins = UIEdgeInsetsMake(16.0, 16.0, 16.0, 16.0);
     row.layoutMarginsRelativeArrangement = YES;
     [card addSubview:row];
 
