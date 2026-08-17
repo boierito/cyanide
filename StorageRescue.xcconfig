@@ -1,0 +1,9 @@
+// Storage Rescue product identity.
+// Keep public release versioning here so the build script and packaged Info.plist
+// have one source of truth independent from the upstream Cyanide target values.
+
+PRODUCT_BUNDLE_IDENTIFIER = io.github.boierito.storagerescue
+MARKETING_VERSION = 1.1.0
+CURRENT_PROJECT_VERSION = 110
+INFOPLIST_KEY_CFBundleDisplayName = Storage Rescue
+INFOPLIST_KEY_CFBundleName = StorageRescue
