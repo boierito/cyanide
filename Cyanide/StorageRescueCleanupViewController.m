@@ -11,13 +11,19 @@
     [super viewDidLoad];
     self.title = @"Cleanup";
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
-    self.friendlyModeControl = [self findSegmentedControlInView:self.tableView.tableHeaderView];
+    self.friendlyModeControl = [self findSegmentedControlInView:self.navigationItem.titleView];
+    if (!self.friendlyModeControl) {
+        self.friendlyModeControl = [self findSegmentedControlInView:self.tableView.tableHeaderView];
+    }
     [self applyFriendlyModeLabels];
 }
 
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
+    if (!self.friendlyModeControl) {
+        self.friendlyModeControl = [self findSegmentedControlInView:self.navigationItem.titleView];
+    }
     if (!self.friendlyModeControl) {
         self.friendlyModeControl = [self findSegmentedControlInView:self.tableView.tableHeaderView];
     }
