@@ -8,6 +8,8 @@ on:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
       - "scripts/build.sh"
+      - "Cyanide/StorageCleanerViewController.h"
+      - "Cyanide/StorageCleanerViewController.m"
       - "Cyanide/StorageRescueHomeViewController.h"
       - "Cyanide/StorageRescueHomeViewController.m"
       - "Cyanide/StorageRescueCleanupViewController.h"
@@ -98,6 +100,9 @@ jobs:
           echo "Executable dependencies:"
           xcrun otool -L "$EXECUTABLE"
           xcrun otool -L "$EXECUTABLE" | grep -F '@loader_path/libxpf.dylib'
+
+          echo "Verifying StorageCleanerViewController is linked:"
+          xcrun nm "$EXECUTABLE" | grep -F '_OBJC_CLASS_$_StorageCleanerViewController'
 
           echo "libxpf.dylib dependencies:"
           xcrun otool -L "$XPF_DYLIB"
