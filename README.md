@@ -1,63 +1,84 @@
 # Storage Rescue for iOS
 
-Storage Rescue is a dedicated iOS recovery utility for deleting data that can still be read or moved but refuses to be removed normally.
+Storage Rescue is a dedicated iOS cache-recovery and cleanup utility built from the Cyanide / DarkSword research stack.
 
-It is built from the Cyanide / DarkSword kernel research stack and was created after encountering a real filesystem tree where normal `unlink(2)` returned `EPERM` even though the files were readable, writable, and owned by `mobile`.
+It was created for filesystem data that can still be read or moved but may refuse normal deletion with `EPERM`. The current app combines a limited per-app cache cleaner with the guarded Storage Rescue solver.
 
-> **Destructive tool. There is no undo. Read the staging instructions before using it.**
+> **Destructive tool. There is no undo. Review every selected item before cleaning or staging it.**
 
-## The staging rule
+## Cache browser
 
-Storage Rescue intentionally operates on **one hard-coded directory only**:
+The main screen has three modes:
+
+### Apps
+
+Storage Rescue enumerates application data containers and calculates removable cache usage per app.
+
+The allowed per-app scope is deliberately limited to:
+
+```text
+<app container>/Library/Caches
+<app container>/tmp
+```
+
+Apps with no data in those locations are omitted from the list. Results are sorted by recoverable size and can be searched by app name or bundle identifier.
+
+Normal app cache is removed **in place**. Storage Rescue preserves the `Library/Caches` and `tmp` root directories and removes only their contents.
+
+If direct POSIX deletion is denied, the remaining top-level cache entries can be staged into the Storage Rescue target and passed to the guarded solver.
+
+### Discarded
+
+Storage Rescue also checks the optional CacheDelete location:
+
+```text
+/var/mobile/Library/Caches/com.apple.cache_delete/com.apple.CacheDeleteAppContainerCaches.discardedCaches
+```
+
+This directory does not necessarily exist on every device or at every moment. When present, its direct entries are scanned and listed by size. When absent, the UI reports that there is nothing there; Storage Rescue does **not** create this system-managed directory.
+
+Selected discarded entries are moved with `rename(2)` into the staging target before solver deletion. On the same `/var` filesystem this is a metadata move rather than a second copy of the data.
+
+### Staging
+
+The guarded solver continues to operate only inside:
 
 ```text
 /var/mobile/Documents/test
 ```
 
-Before opening the deletion workflow:
+`Prepare Access` automatically creates this directory if it does not exist.
 
-1. Use Filza or another compatible filesystem manager.
-2. Move **only the files or folders you actually want to permanently delete** into `/var/mobile/Documents/test`.
-3. Do **not** move `/var/mobile/Documents` itself, your whole Library, an application container you still need, or unrelated system data.
-4. Return to Storage Rescue and run the verification workflow.
+Moving data into `test` does **not** free space by itself. It is only a quarantine/staging step. The bytes are reclaimed only after the solver successfully removes the files.
 
-The app rejects deletion paths outside the hard-coded target. This is deliberate: Storage Rescue is not intended to be a general-purpose root file manager.
+## Recommended strategy
 
-## Workflow
+Use direct in-place cleanup for ordinary app caches. There is no reason to move healthy cache data first when a normal `unlink(2)` succeeds.
 
-The app launches directly into Storage Rescue. There are no tweak-store, package, source, or general Cyanide screens in the dedicated build.
+Use staging for protected or abandoned CacheDelete data, or as a fallback when an app cache returns deletion errors. Moving an entire protected subtree can succeed even when deleting individual protected leaf files does not; the solver can then operate inside its proven hard boundary.
 
-Use the actions in this order:
+## Prepare Access
 
-### 1. Prepare Access
+Filesystem scanning and modification never start the exploit implicitly. Run `Prepare Access` first.
 
-Initializes or recovers the DarkSword kernel read/write primitive and obtains the filesystem access required by the recovery flow.
+The access flow initializes or reuses DarkSword kernel read/write and obtains the filesystem access required by the recovery flow. It does **not** use the older aggressive `patch_sandbox_ext()` path that was found to be unstable during development.
 
-The Storage Rescue implementation does **not** use the older aggressive `patch_sandbox_ext()` path that was found to be unstable during development.
+After access is ready, Storage Rescue verifies the app-container root and creates `/var/mobile/Documents/test` if necessary.
 
-### 2. Scan Target
+## Guarded solver
 
-Recursively scans `/var/mobile/Documents/test` using filesystem APIs and reports:
+The Solver is the recovery path for staged data that still refuses normal deletion.
 
-- file count
-- directory count
-- logical size
-- allocated size
-- scan errors
-
-Scanning does not delete anything.
-
-### 3. Prove One Real Delete
-
-Before mass deletion is enabled, Storage Rescue must successfully remove one original staged file and verify that it is physically gone.
-
-The proof is not based on a sandbox permission query or an Objective-C `isDeletable` result. Success requires an actual deletion followed by:
+Before mass deletion is enabled, it must successfully remove one real staged file and verify:
 
 ```text
+unlink(path) == 0
 lstat(path) -> ENOENT
 ```
 
-The recovery path can evaluate and repair deletion-blocking filesystem state, including BSD/APFS flags such as:
+It does not trust a theoretical `ALLOW`, `isDeletable`, or sandbox query as proof of deletion capability.
+
+The recovery path can inspect and repair deletion-blocking BSD/APFS state including:
 
 - `UF_IMMUTABLE`
 - `UF_APPEND`
@@ -70,11 +91,9 @@ The recovery path can evaluate and repair deletion-blocking filesystem state, in
 
 It can also evaluate the relevant sandbox-extension path and `com.apple.macl` metadata when needed.
 
-### Guarded KRW repair
+### KRW guard
 
-If normal metadata operations are rejected and kernel read/write is required, Storage Rescue does not blindly write a hard-coded vnode field.
-
-Before modifying the APFS BSD flags field it cross-checks the pinned vnode/fsnode against the userspace `stat` result, including:
+If userspace metadata operations are rejected and a kernel metadata write is required, Storage Rescue cross-checks the pinned vnode/fsnode against userspace metadata before writing anything:
 
 - UID
 - GID
@@ -82,55 +101,26 @@ Before modifying the APFS BSD flags field it cross-checks the pinned vnode/fsnod
 - BSD flags
 - inode identity during verification
 
-If the expected layout does not agree, the operation stops with a guard failure and no delete is attempted.
+If those values do not match the expected APFS layout, the operation aborts with no kernel write and no delete attempt.
 
-### 4. Delete Entire Test Directory
+## Safety boundaries
 
-This action stays locked until step 3 has proven a real deletion.
+Storage Rescue intentionally separates the two cleanup modes:
 
-Once unlocked, Storage Rescue processes the staged tree with filesystem deletion primitives:
+- **App cleaner:** only validated application containers, and only `Library/Caches` + `tmp` contents.
+- **Discarded CacheDelete:** only direct children of the known `discardedCaches` path can be staged.
+- **Solver:** only `/var/mobile/Documents/test` and descendants.
+- symlinks are never followed while scanning or traversing cache trees.
+- mass solver deletion remains locked until a real staged-file deletion is proven.
+- no automatic `patch_sandbox_ext()` mutation.
 
-- `unlink(2)` for files and symlinks
-- `rmdir(2)` for directories
+The app is not a general-purpose root file manager.
 
-It verifies failures and stops rather than continuing indefinitely when the recovery mechanism is no longer working.
+## Relationship to 3105
 
-## Why `write` is not enough
+The app-cache browser is inspired by the limited-cleaner design in [`YangJiiii/3105`](https://github.com/YangJiiii/3105), whose cleaner deliberately limits per-app cleanup to `Library/Caches` and `tmp` and presents cache usage by application.
 
-Being able to write file contents does not necessarily mean the process can remove the directory entry. During development, both Cyanide and SpringBoard could read/write the test tree while real `unlink()` calls still returned:
-
-```text
-EPERM (Operation not permitted)
-```
-
-Likewise, a basic `sandbox_check(..., "file-write-unlink", ...)` query reported `ALLOW` for processes whose real syscall still failed. For that reason, Storage Rescue treats the actual syscall plus `ENOENT` verification as the source of truth.
-
-## Safety model
-
-The dedicated build is intentionally narrow:
-
-- hard boundary: `/var/mobile/Documents/test`
-- no arbitrary path picker
-- no recursive delete outside that boundary
-- mass deletion locked until one real file is removed and verified
-- no automatic `patch_sandbox_ext()` kernel mutation
-- guarded APFS metadata repair
-- no inherited-method swizzling for the Storage Rescue UI
-- user must manually stage the intended data first
-
-Symlinks are treated as filesystem entries and are not followed for the kernel metadata repair path.
-
-## Real-world validation
-
-The recovery flow was developed against a real cache tree containing more than 100,000 files and tens of gigabytes of allocated data. The final guarded solver successfully removed files that previously returned `EPERM` through both local and SpringBoard `unlink()` attempts.
-
-This does not mean every iOS version, device, filesystem state, or corruption scenario is supported. Kernel offsets and exploit behavior are version/device dependent.
-
-## Install
-
-Prebuilt unsigned IPAs are published under GitHub Releases when available.
-
-The IPA still needs to be signed/sideloaded using a compatible method for the target device. Storage Rescue does not include an Apple distribution signature.
+Storage Rescue uses its own Objective-C implementation and adds the DarkSword-based protected-file staging/solver workflow for cache trees that normal deletion cannot remove.
 
 ## Build
 
@@ -138,27 +128,11 @@ The IPA still needs to be signed/sideloaded using a compatible method for the ta
 ./scripts/build.sh
 ```
 
-The build script writes the unsigned application to:
+The unsigned IPA is written under `build/`, with `build/Cyanide.ipa` pointing at the latest build. The `Storage Rescue IPA` GitHub Actions workflow publishes the artifact as `Storage-Rescue.ipa`.
 
-```text
-build/Cyanide.ipa
-```
+## Installation
 
-The `Storage Rescue IPA` GitHub Actions workflow packages that binary as `Storage-Rescue.ipa`.
-
-## Development notes
-
-The original problem was not solved by:
-
-- `chmod`
-- `chown`
-- moving the tree within the same APFS volume
-- `NSFileManager removeItemAtPath:`
-- local `unlink()` with a normal read/write sandbox extension
-- SpringBoard RemoteCall `unlink()`
-- trusting `sandbox_check()` alone
-
-The working recovery path was kept behind explicit validation checks because incorrect vnode/APFS writes can panic or reboot the device.
+The IPA is unsigned and must be signed/sideloaded with a compatible method for the target device.
 
 ## Credits
 
@@ -168,9 +142,8 @@ Storage Rescue is built on work from the Cyanide and DarkSword ecosystem.
 - [`opa334`](https://github.com/opa334) — original DarkSword kernel exploit work, ChOma and XPF components.
 - [`wh1te4ever`](https://github.com/wh1te4ever) — `darksword-kexploit-fun` / RemoteCall work used by Cyanide.
 - [`rooootdev`](https://github.com/rooootdev) — exploit behavior referenced by the Cyanide project for reliability work.
+- [`YangJiiii/3105`](https://github.com/YangJiiii/3105) — reference for the deliberately limited per-app cache-cleaner model.
 - Cyanide's upstream contributors and the researchers credited in the original project history.
-
-The repository history is intentionally preserved so the provenance of the exploit, RemoteCall, and supporting research remains visible.
 
 ## License
 
@@ -178,6 +151,6 @@ This repository remains licensed under **AGPL-3.0**. See `LICENSE`.
 
 ## Disclaimer
 
-Storage Rescue modifies filesystem metadata and permanently removes files. Kernel exploitation and incorrect filesystem metadata changes can crash, panic, or reboot a device and may cause data loss.
+Storage Rescue modifies filesystem data and, in solver mode, may modify filesystem metadata. Kernel exploitation and incorrect low-level filesystem changes can crash, panic, or reboot a device and may cause data loss.
 
-Only stage data you have deliberately chosen to destroy, keep backups of anything important, and do not modify the hard-coded safety boundary unless you understand the consequences.
+Use it only on devices and data you control. Close apps before clearing their cache, review selections carefully, and keep backups of anything important.
