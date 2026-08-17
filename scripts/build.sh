@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Build the dedicated Storage Rescue app for iphoneos and package the resulting
-# .app into a versioned IPA under build/. The product identity/version comes
+# .app into a versioned IPA under build/. The public identity/version comes
 # from StorageRescue.xcconfig and is intentionally independent from upstream
-# Cyanide target defaults.
+# Cyanide target defaults. The internal Xcode product remains Cyanide.app
+# because the inherited target has linker paths tied to that binary name.
 #
 # Run as: ./scripts/build.sh
 # Override defaults with env vars:
@@ -44,7 +45,7 @@ if [ "$SCHEME" = "CyanideVPhone" ]; then
     APP_NAME="Cyanide.app"
     IPA_PREFIX="CyanideVPhone"
 else
-    APP_NAME="StorageRescue.app"
+    APP_NAME="Cyanide.app"
     IPA_PREFIX="Storage-Rescue"
     XCCONFIG_ARGS=(-xcconfig "$PWD/StorageRescue.xcconfig")
 fi
