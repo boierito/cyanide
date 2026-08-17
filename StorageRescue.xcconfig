@@ -3,8 +3,8 @@
 // Xcode product name intentionally stays inherited because the original target
 // has linker paths tied to the Cyanide binary name.
 
-PRODUCT_BUNDLE_IDENTIFIER = io.github.boierito.storagerescue
-MARKETING_VERSION = 1.2.0
-CURRENT_PROJECT_VERSION = 120
+PRODUCT_BUNDLE_IDENTIFIER = com.boierito.cyanide
+MARKETING_VERSION = 1.0.0
+CURRENT_PROJECT_VERSION = 1
 INFOPLIST_KEY_CFBundleDisplayName = Storage Rescue
 INFOPLIST_KEY_CFBundleName = StorageRescue
