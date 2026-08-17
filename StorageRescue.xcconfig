@@ -1,9 +1,9 @@
 // Storage Rescue product identity.
-// Keep public release versioning here so the build script and packaged Info.plist
-// have one source of truth independent from the upstream Cyanide target values.
+// Public identity/versioning is independent from upstream Cyanide. The internal
+// Xcode product name intentionally stays inherited because the original target
+// has linker paths tied to the Cyanide binary name.
 
 PRODUCT_BUNDLE_IDENTIFIER = io.github.boierito.storagerescue
-PRODUCT_NAME = StorageRescue
 MARKETING_VERSION = 1.1.0
 CURRENT_PROJECT_VERSION = 110
 INFOPLIST_KEY_CFBundleDisplayName = Storage Rescue
