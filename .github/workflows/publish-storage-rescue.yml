@@ -1,3 +1,4 @@
+# Release trigger: Storage Cleaner 1.1.5 functional baseline
 name: Publish Storage Cleaner
 
 on:
