@@ -1,12 +1,10 @@
 // Storage Cleaner product identity.
-// Keep the runtime bundle identity used by the last on-device build that
-// successfully completed access and displayed scan results. The visible name
-// remains Storage Cleaner; only the process identity is restored for DarkSword
-// compatibility testing.
+// Keep the runtime bundle identity used by the working main build. The access
+// and cleanup runtime path is intentionally kept identical to main.
 
 PRODUCT_BUNDLE_IDENTIFIER = com.boierito.cyanide
-MARKETING_VERSION = 1.1.3
-CURRENT_PROJECT_VERSION = 7
+MARKETING_VERSION = 1.1.4
+CURRENT_PROJECT_VERSION = 8
 INFOPLIST_KEY_CFBundleDisplayName = Storage Cleaner
 INFOPLIST_KEY_CFBundleName = StorageCleaner
 
