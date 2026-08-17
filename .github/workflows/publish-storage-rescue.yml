@@ -53,7 +53,7 @@ jobs:
           cat > /tmp/release-notes.md <<EOF
           # Storage Rescue ${VERSION}
 
-          Storage Rescue is a dedicated iOS cache-cleanup and recovery utility.
+          Storage Rescue is a dedicated iOS cache-cleanup and recovery utility with a guided, review-first workflow.
 
           **Bundle ID:** \`${BUNDLE_ID}\`  
           **Version:** \`${VERSION}\`  
@@ -61,11 +61,11 @@ jobs:
 
           ## User workflow
 
-          - **App Cache** scans only each app's \`Library/Caches\` and \`tmp\` folders and clears selected temporary data in place.
-          - **Protected Cache** detects CacheDelete leftovers when that system-managed location exists and moves selected entries into Rescue.
-          - **Rescue** handles staged cache that normal deletion could not remove and keeps full cleanup locked until one real deletion is verified.
+          - **Apps** shows removable temporary cache from validated app containers and lets the user choose exactly which apps to clean.
+          - **iOS Leftovers** shows system cache that iOS has already set aside. Selected leftovers are moved into Rescue before deletion.
+          - **Rescue** handles staged cache when normal deletion is blocked and keeps full cleanup locked until one real deletion is verified.
 
-          Storage Rescue automatically creates its private Rescue area when access is enabled. Moving protected data into Rescue does not free storage by itself; Rescue must complete the deletion.
+          The app now opens on a plain-language home screen, explains the three cleanup stages before the user starts, hides technical identifiers from the normal app list, and keeps troubleshooting details out of the primary flow.
 
           ## Installation
 
