@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
-# Build Cyanide for iphoneos and package the resulting .app into a versioned IPA
-# under build/, e.g. build/Cyanide-1.0.14.ipa, with a build/Cyanide.ipa
-# symlink pointing at the latest build. With SDK=iphonesimulator, build the
-# simulator .app and skip IPA packaging.
+# Build the dedicated Storage Rescue app for iphoneos and package the resulting
+# .app into a versioned IPA under build/. The product identity/version comes
+# from StorageRescue.xcconfig and is intentionally independent from upstream
+# Cyanide target defaults.
 #
 # Run as: ./scripts/build.sh
 # Override defaults with env vars:
 #   SCHEME, CONFIG (Debug|Release|VPhone Debug), SDK (iphoneos|iphonesimulator)
 #
-# The version comes from CFBundleShortVersionString in the built Info.plist
-# (= the MARKETING_VERSION build setting in the xcodeproj). Bump
-# MARKETING_VERSION to ship a new version.
-#
-# Code signing is disabled — the IPA ships unsigned for sideload via
-# AltStore / TrollStore / Sideloadly, which do their own signing.
+# Code signing is disabled — the IPA ships unsigned for compatible sideloading
+# workflows, which apply their own signing.
 
 set -euo pipefail
 
@@ -37,19 +33,23 @@ SDK="${SDK:-iphoneos}"
 PROJECT="Cyanide.xcodeproj"
 DERIVED="$PWD/build/DerivedData"
 PRODUCT_DIR="$DERIVED/Build/Products/${CONFIG}-${SDK}"
-APP_NAME="Cyanide.app"
-if [ "$SCHEME" = "CyanideVPhone" ]; then
-    IPA_PREFIX="CyanideVPhone"
-else
-    IPA_PREFIX="Cyanide"
-fi
-IPA_LATEST="$PWD/build/${IPA_PREFIX}.ipa"
 XCODEBUILD_EXTRA=()
+XCCONFIG_ARGS=()
 
 if [ "$SDK" = "iphonesimulator" ]; then
     XCODEBUILD_EXTRA=(ARCHS=arm64 ONLY_ACTIVE_ARCH=YES)
 fi
 
+if [ "$SCHEME" = "CyanideVPhone" ]; then
+    APP_NAME="Cyanide.app"
+    IPA_PREFIX="CyanideVPhone"
+else
+    APP_NAME="StorageRescue.app"
+    IPA_PREFIX="Storage-Rescue"
+    XCCONFIG_ARGS=(-xcconfig "$PWD/StorageRescue.xcconfig")
+fi
+
+IPA_LATEST="$PWD/build/${IPA_PREFIX}.ipa"
 mkdir -p build
 
 echo "==> xcodebuild ($SCHEME / $CONFIG / $SDK)"
@@ -59,6 +59,7 @@ xcodebuild \
     -sdk "$SDK" \
     -configuration "$CONFIG" \
     -derivedDataPath "$DERIVED" \
+    "${XCCONFIG_ARGS[@]}" \
     CODE_SIGNING_ALLOWED=NO \
     ${XCODEBUILD_EXTRA[@]+"${XCODEBUILD_EXTRA[@]}"} \
     build \
@@ -69,6 +70,7 @@ xcodebuild \
          -sdk "$SDK" \
          -configuration "$CONFIG" \
          -derivedDataPath "$DERIVED" \
+         "${XCCONFIG_ARGS[@]}" \
          CODE_SIGNING_ALLOWED=NO \
          ${XCODEBUILD_EXTRA[@]+"${XCODEBUILD_EXTRA[@]}"} \
          build
@@ -76,6 +78,8 @@ xcodebuild \
 APP_PATH="$PRODUCT_DIR/$APP_NAME"
 if [ ! -d "$APP_PATH" ]; then
     echo "error: $APP_PATH not found after build" >&2
+    echo "products in $PRODUCT_DIR:" >&2
+    find "$PRODUCT_DIR" -maxdepth 1 -type d -name '*.app' -print >&2 || true
     exit 1
 fi
 
@@ -121,34 +125,40 @@ if [ "$SCHEME" = "CyanideVPhone" ]; then
     echo "==> bundling vphone SpringBoard bridge"
     ditto "$VPHONE_BRIDGE_SRC" "$VPHONE_BRIDGE_DST"
     chmod 0755 "$VPHONE_BRIDGE_DST"
-    # The bridge is loaded into SpringBoard by TweakLoader. Keep it fat
-    # arm64/arm64e and ad-hoc sign it with no entitlements; app/helper
-    # entitlements make SpringBoard/AMFI reject the dylib on vphone.
     ldid -S "$VPHONE_BRIDGE_DST"
 fi
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PATH/Info.plist" 2>/dev/null || true)
-if [ -z "$VERSION" ]; then
-    echo "error: could not read CFBundleShortVersionString from $APP_PATH/Info.plist" >&2
+BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PATH/Info.plist" 2>/dev/null || true)
+BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist" 2>/dev/null || true)
+if [ -z "$VERSION" ] || [ -z "$BUILD" ] || [ -z "$BUNDLE_ID" ]; then
+    echo "error: could not read Storage Rescue identity from $APP_PATH/Info.plist" >&2
     exit 1
 fi
+
+echo "==> identity $BUNDLE_ID · version $VERSION ($BUILD)"
 
 IPA_OUT="$PWD/build/${IPA_PREFIX}-${VERSION}.ipa"
 IPA_BASENAME="$(basename "$IPA_OUT")"
 LATEST_BASENAME="$(basename "$IPA_LATEST")"
 
-echo "==> packaging $IPA_OUT (version $VERSION)"
-STAGE="$(mktemp -d -t cyanide-ipa)"
+echo "==> packaging $IPA_OUT"
+STAGE="$(mktemp -d -t storage-rescue-ipa)"
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/Payload"
 cp -R "$APP_PATH" "$STAGE/Payload/"
 rm -f "$IPA_OUT"
 ( cd "$STAGE" && zip -qry "$IPA_OUT" Payload )
 
-# Keep an unversioned symlink so tooling / README references that expect the
-# legacy path still resolve to the latest build.
 rm -f "$IPA_LATEST"
 ( cd "$PWD/build" && ln -s "$IPA_BASENAME" "$LATEST_BASENAME" )
+
+# Compatibility link for older local scripts while the repository transitions
+# away from the inherited Cyanide product name.
+if [ "$SCHEME" != "CyanideVPhone" ]; then
+    rm -f "$PWD/build/Cyanide.ipa"
+    ( cd "$PWD/build" && ln -s "$IPA_BASENAME" Cyanide.ipa )
+fi
 
 SIZE=$(du -h "$IPA_OUT" | cut -f1)
 echo "==> wrote $IPA_OUT ($SIZE)"
