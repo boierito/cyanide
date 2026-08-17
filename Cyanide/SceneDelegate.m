@@ -1,10 +1,10 @@
 //
 //  SceneDelegate.m
-//  Storage Rescue dedicated fork
+//  Storage Cleaner dedicated fork
 //
 
 #import "SceneDelegate.h"
-#import "StorageRescueHomeViewController.h"
+#import "StorageRescueCleanupViewController.h"
 
 @implementation SceneDelegate
 
@@ -17,7 +17,7 @@ willConnectToSession:(UISceneSession *)session
     UIWindowScene *windowScene = (UIWindowScene *)scene;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
 
-    StorageRescueHomeViewController *root = [[StorageRescueHomeViewController alloc] init];
+    StorageRescueCleanupViewController *root = [[StorageRescueCleanupViewController alloc] init];
     UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:root];
     navigation.navigationBar.prefersLargeTitles = YES;
 
