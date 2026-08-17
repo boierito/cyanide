@@ -2,7 +2,6 @@
 
 @interface StorageRescueRecoveryViewController ()
 @property (nonatomic, strong) UIView *friendlyHeader;
-@property (nonatomic, strong) UILabel *friendlyBody;
 @property (nonatomic, assign) BOOL diagnosticsExpanded;
 @end
 
@@ -11,7 +10,7 @@
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-    self.title = @"Rescue";
+    self.title = @"Protected Rescue";
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     [self buildFriendlyHeader];
 }
@@ -24,32 +23,32 @@
 
 - (void)buildFriendlyHeader
 {
-    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 170)];
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 180.0)];
 
     UIView *card = [[UIView alloc] initWithFrame:CGRectZero];
     card.translatesAutoresizingMaskIntoConstraints = NO;
     card.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
-    card.layer.cornerRadius = 16.0;
+    card.layer.cornerRadius = 18.0;
     card.layer.cornerCurve = kCACornerCurveContinuous;
     [header addSubview:card];
 
     UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"lifepreserver.fill"]];
     icon.translatesAutoresizingMaskIntoConstraints = NO;
-    icon.tintColor = UIColor.systemRedColor;
+    icon.tintColor = UIColor.systemOrangeColor;
     icon.contentMode = UIViewContentModeScaleAspectFit;
 
     UILabel *title = [[UILabel alloc] initWithFrame:CGRectZero];
-    title.text = @"Protected cleanup";
+    title.text = @"Only for cache already moved to Rescue";
     title.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
     title.adjustsFontForContentSizeCategory = YES;
+    title.numberOfLines = 0;
 
     UILabel *body = [[UILabel alloc] initWithFrame:CGRectZero];
-    body.text = @"Use Rescue only for cache already moved into the rescue area. Storage Rescue first checks the contents, then removes one real cache file as a safety proof. Full cleanup stays locked until that proof succeeds.";
+    body.text = @"Follow the steps in order. Storage Rescue first checks the staged files, then proves that one file can really be deleted. Full cleanup stays locked until that verification succeeds.";
     body.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
     body.textColor = UIColor.secondaryLabelColor;
     body.numberOfLines = 0;
     body.adjustsFontForContentSizeCategory = YES;
-    self.friendlyBody = body;
 
     UIStackView *text = [[UIStackView alloc] initWithArrangedSubviews:@[title, body]];
     text.axis = UILayoutConstraintAxisVertical;
@@ -60,7 +59,7 @@
     row.axis = UILayoutConstraintAxisHorizontal;
     row.alignment = UIStackViewAlignmentTop;
     row.spacing = 12.0;
-    row.layoutMargins = UIEdgeInsetsMake(16, 16, 16, 16);
+    row.layoutMargins = UIEdgeInsetsMake(16.0, 16.0, 16.0, 16.0);
     row.layoutMarginsRelativeArrangement = YES;
     [card addSubview:row];
 
@@ -94,7 +93,7 @@
     CGSize fitting = [self.friendlyHeader systemLayoutSizeFittingSize:CGSizeMake(width, UILayoutFittingCompressedSize.height)
                                           withHorizontalFittingPriority:UILayoutPriorityRequired
                                                 verticalFittingPriority:UILayoutPriorityFittingSizeLevel];
-    CGFloat height = MAX(150.0, fitting.height);
+    CGFloat height = MAX(156.0, fitting.height);
     if (fabs(self.friendlyHeader.frame.size.height - height) > 0.5) {
         frame = self.friendlyHeader.frame;
         frame.size.height = height;
@@ -114,18 +113,18 @@
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
 {
-    if (section == 0) return @"Rescue Status";
-    if (section == 1) return @"Safe Cleanup";
-    return @"Technical Details";
+    if (section == 0) return @"WHAT IS WAITING";
+    if (section == 1) return @"FOLLOW THESE STEPS";
+    return @"TROUBLESHOOTING";
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
 {
     if (section == 1) {
-        return @"Full cleanup cannot start until Storage Rescue has successfully removed and verified one real staged cache file.";
+        return @"The final delete action cannot run until the one-file verification succeeds.";
     }
     if (section == 2) {
-        return @"Technical logs are optional and mainly useful when troubleshooting a failed rescue.";
+        return @"Technical details are hidden by default and are only useful when a Rescue step fails.";
     }
     return nil;
 }
@@ -149,11 +148,11 @@
     if (indexPath.section == 0) {
         if (indexPath.row == 0) {
             cell.textLabel.text = @"Rescue Area";
-            cell.detailTextLabel.text = @"Private staging folder";
+            cell.detailTextLabel.text = @"Dedicated staging folder";
         } else if (indexPath.row == 1) {
-            cell.textLabel.text = @"Status";
+            cell.textLabel.text = @"Current Status";
         } else if (indexPath.row == 2) {
-            cell.textLabel.text = @"Staged Data";
+            cell.textLabel.text = @"Storage Waiting";
         }
         return cell;
     }
@@ -161,23 +160,23 @@
     if (indexPath.section == 1) {
         cell.imageView.tintColor = UIColor.systemBlueColor;
         if (indexPath.row == 0) {
-            cell.textLabel.text = @"1. Prepare Rescue";
-            cell.detailTextLabel.text = @"Makes the rescue area available. Nothing is deleted.";
+            cell.textLabel.text = @"1. Prepare";
+            cell.detailTextLabel.text = @"Makes the Rescue area available. Nothing is deleted.";
             cell.imageView.image = [UIImage systemImageNamed:@"shield.lefthalf.filled"];
         } else if (indexPath.row == 1) {
-            cell.textLabel.text = @"2. Check Contents";
-            cell.detailTextLabel.text = @"Counts staged files and the storage they occupy.";
+            cell.textLabel.text = @"2. Scan Staged Files";
+            cell.detailTextLabel.text = @"Measures what is waiting and how much storage it uses.";
             cell.imageView.image = [UIImage systemImageNamed:@"magnifyingglass"];
         } else if (indexPath.row == 2) {
-            cell.textLabel.text = @"3. Verify Safe Deletion";
-            cell.detailTextLabel.text = @"Deletes one staged cache file and confirms it is really gone.";
+            cell.textLabel.text = @"3. Verify One Deletion";
+            cell.detailTextLabel.text = @"Removes one staged cache file and confirms that it is really gone.";
             cell.imageView.image = [UIImage systemImageNamed:@"checkmark.shield"];
         } else if (indexPath.row == 3) {
             BOOL unlocked = [cell.detailTextLabel.text containsString:@"UNLOCKED"];
             cell.textLabel.text = @"4. Free Staged Storage";
             cell.detailTextLabel.text = unlocked
-                ? @"Ready — deletion has been verified."
-                : @"Locked until the verification step succeeds.";
+                ? @"Ready — deletion was verified successfully."
+                : @"Locked until step 3 succeeds.";
             cell.textLabel.textColor = unlocked ? UIColor.systemRedColor : UIColor.tertiaryLabelColor;
             cell.imageView.image = [UIImage systemImageNamed:unlocked ? @"trash.fill" : @"lock.fill"];
             cell.imageView.tintColor = unlocked ? UIColor.systemRedColor : UIColor.tertiaryLabelColor;
