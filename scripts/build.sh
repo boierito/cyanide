@@ -86,11 +86,25 @@ fi
 
 normalize_storage_rescue_plist() {
     local plist="$1"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Storage Rescue" "$plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleName StorageRescue" "$plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier io.github.boierito.storagerescue" "$plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.1.0" "$plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 110" "$plist"
+    python3 - "$plist" <<'PY'
+import plistlib
+import sys
+
+path = sys.argv[1]
+with open(path, "rb") as f:
+    data = plistlib.load(f)
+
+data.update({
+    "CFBundleDisplayName": "Storage Rescue",
+    "CFBundleName": "StorageRescue",
+    "CFBundleIdentifier": "io.github.boierito.storagerescue",
+    "CFBundleShortVersionString": "1.1.0",
+    "CFBundleVersion": "110",
+})
+
+with open(path, "wb") as f:
+    plistlib.dump(data, f, fmt=plistlib.FMT_BINARY, sort_keys=False)
+PY
 }
 
 # Keep the intermediate product coherent for local inspection. The same
