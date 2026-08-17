@@ -59,7 +59,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Verify final IPA identity
+      - name: Verify final IPA identity and runtime dependencies
         run: |
           read_xcconfig_value() {
             local key="$1"
@@ -76,7 +76,13 @@ jobs:
           unzip -q -o build/Storage-Rescue.ipa -d /tmp/storage-rescue-verify
           APP="/tmp/storage-rescue-verify/Payload/Cyanide.app"
           PLIST="$APP/Info.plist"
+          EXECUTABLE="$APP/Cyanide"
+          XPF_DYLIB="$APP/libxpf.dylib"
+
           test -f "$PLIST"
+          test -x "$EXECUTABLE"
+          test -f "$XPF_DYLIB"
+
           DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$PLIST")
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST")
           VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
@@ -88,6 +94,25 @@ jobs:
           test "$BUNDLE_ID" = "$EXPECTED_BUNDLE_ID"
           test "$VERSION" = "$EXPECTED_VERSION"
           test "$BUILD" = "$EXPECTED_BUILD"
+
+          echo "Executable dependencies:"
+          xcrun otool -L "$EXECUTABLE"
+          xcrun otool -L "$EXECUTABLE" | grep -F '@loader_path/libxpf.dylib'
+
+          echo "libxpf.dylib dependencies:"
+          xcrun otool -L "$XPF_DYLIB"
+
+          while IFS= read -r dependency; do
+            case "$dependency" in
+              @loader_path/*)
+                relative="${dependency#@loader_path/}"
+                if [ ! -e "$APP/$relative" ]; then
+                  echo "error: missing runtime dependency $dependency" >&2
+                  exit 1
+                fi
+                ;;
+            esac
+          done < <(xcrun otool -L "$EXECUTABLE" | tail -n +2 | awk '{print $1}')
 
       - name: Prepare artifact
         run: |
