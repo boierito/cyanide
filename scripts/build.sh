@@ -84,13 +84,20 @@ if [ ! -d "$APP_PATH" ]; then
     exit 1
 fi
 
-# The inherited Xcode target has a target-level display-name override that
-# survives Info.plist processing. Because this IPA is unsigned at this stage,
-# normalize the final packaged plist here so the installed app identity is
-# unambiguously Storage Rescue without renaming the linker-bound binary.
+normalize_storage_rescue_plist() {
+    local plist="$1"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Storage Rescue" "$plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName StorageRescue" "$plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier io.github.boierito.storagerescue" "$plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.1.0" "$plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 110" "$plist"
+}
+
+# Keep the intermediate product coherent for local inspection. The same
+# normalization is repeated on the staged payload below because the IPA payload
+# is the actual installation source of truth.
 if [ "$SCHEME" != "CyanideVPhone" ]; then
-    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Storage Rescue" "$APP_PATH/Info.plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleName StorageRescue" "$APP_PATH/Info.plist"
+    normalize_storage_rescue_plist "$APP_PATH/Info.plist"
 fi
 
 if [ "$SDK" = "iphonesimulator" ]; then
@@ -157,6 +164,17 @@ STAGE="$(mktemp -d -t storage-rescue-ipa)"
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/Payload"
 cp -R "$APP_PATH" "$STAGE/Payload/"
+
+if [ "$SCHEME" != "CyanideVPhone" ]; then
+    FINAL_PLIST="$STAGE/Payload/$APP_NAME/Info.plist"
+    normalize_storage_rescue_plist "$FINAL_PLIST"
+    echo "==> final payload identity"
+    /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$FINAL_PLIST"
+    /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$FINAL_PLIST"
+    /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$FINAL_PLIST"
+    /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$FINAL_PLIST"
+fi
+
 rm -f "$IPA_OUT"
 ( cd "$STAGE" && zip -qry "$IPA_OUT" Payload )
 
