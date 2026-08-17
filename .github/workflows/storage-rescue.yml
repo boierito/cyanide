@@ -3,7 +3,7 @@ name: Storage Rescue IPA
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, "agent/storage-cleaner-ui"]
     paths:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
