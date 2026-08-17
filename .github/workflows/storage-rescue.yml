@@ -8,6 +8,10 @@ on:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
       - "scripts/build.sh"
+      - "Cyanide/StorageRescueHomeViewController.h"
+      - "Cyanide/StorageRescueHomeViewController.m"
+      - "Cyanide/StorageRescueCleanupViewController.h"
+      - "Cyanide/StorageRescueCleanupViewController.m"
       - "Cyanide/StorageRescueDedicatedViewController.h"
       - "Cyanide/StorageRescueDedicatedViewController.m"
       - "Cyanide/StorageRescueGuideViewController.h"
@@ -57,8 +61,8 @@ jobs:
           echo "Version: $VERSION ($BUILD)"
           test "$DISPLAY_NAME" = "Storage Rescue"
           test "$BUNDLE_ID" = "io.github.boierito.storagerescue"
-          test "$VERSION" = "1.1.0"
-          test "$BUILD" = "110"
+          test "$VERSION" = "1.2.0"
+          test "$BUILD" = "120"
 
       - name: Prepare artifact
         run: |
