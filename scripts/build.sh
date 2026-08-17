@@ -98,8 +98,8 @@ data.update({
     "CFBundleDisplayName": "Storage Rescue",
     "CFBundleName": "StorageRescue",
     "CFBundleIdentifier": "io.github.boierito.storagerescue",
-    "CFBundleShortVersionString": "1.1.0",
-    "CFBundleVersion": "110",
+    "CFBundleShortVersionString": "1.2.0",
+    "CFBundleVersion": "120",
 })
 
 with open(path, "wb") as f:
