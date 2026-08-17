@@ -1,6 +1,5 @@
 #import "StorageRescueDedicatedViewController.h"
-#import "StorageRescueGuideViewController.h"
-#import "StorageRescueRecoveryViewController.h"
+#import "StorageRescueSolverViewController.h"
 
 #import "kexploit/kexploit_opa334.h"
 #import "utils/sandbox.h"
@@ -18,7 +17,6 @@ extern int escape_sbx_demo2(void);
 static NSString * const SRTargetPath = @"/var/mobile/Documents/test";
 static NSString * const SRAppDataRoot = @"/var/mobile/Containers/Data/Application";
 static NSString * const SRDiscardedRoot = @"/var/mobile/Library/Caches/com.apple.cache_delete/com.apple.CacheDeleteAppContainerCaches.discardedCaches";
-static NSString * const SRGuideSeenKey = @"storageRescue.guideSeen.1_1";
 
 typedef NS_ENUM(NSInteger, SRBrowserMode) {
     SRBrowserModeApps = 0,
@@ -108,17 +106,18 @@ static BOOL SRIsApplicationContainerPath(NSString *path)
 {
     NSString *safe = SRStandardPath(path);
     if (!SRPathWithinRoot(safe, SRAppDataRoot, NO)) return NO;
-    return [[NSUUID alloc] initWithUUIDString:safe.lastPathComponent] != nil;
+    NSString *last = safe.lastPathComponent;
+    return [[NSUUID alloc] initWithUUIDString:last] != nil;
 }
 
 static BOOL SREnsureDirectory(NSString *path, NSError **error)
 {
     NSString *safe = SRStandardPath(path);
-    if (!SRPathWithinRoot(safe, SRTargetPath, YES)) {
+    if (!safe.length || ![safe hasPrefix:@"/var/mobile/Documents/test"]) {
         if (error) {
             *error = [NSError errorWithDomain:@"StorageRescue"
                                          code:1
-                                     userInfo:@{NSLocalizedDescriptionKey: @"Storage Rescue refused an unsafe rescue path."}];
+                                     userInfo:@{NSLocalizedDescriptionKey: @"Unsafe staging path"}];
         }
         return NO;
     }
@@ -413,7 +412,7 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
     }
 
     if (identifierOut) *identifierOut = path.lastPathComponent;
-    return path.lastPathComponent.length ? path.lastPathComponent : @"Protected cache";
+    return path.lastPathComponent.length ? path.lastPathComponent : @"Discarded cache";
 }
 
 @interface StorageRescueDedicatedViewController ()
@@ -422,7 +421,6 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 @property (nonatomic, assign) BOOL busy;
 @property (nonatomic, assign) BOOL targetExists;
 @property (nonatomic, assign) BOOL discardedRootExists;
-@property (nonatomic, assign) BOOL guidePresentedThisLaunch;
 @property (nonatomic, copy) NSString *statusText;
 @property (nonatomic, strong) NSArray<SRCacheRecord *> *appRecords;
 @property (nonatomic, strong) NSArray<SRCacheRecord *> *discardedRecords;
@@ -430,13 +428,9 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 @property (nonatomic, strong) NSMutableSet<NSString *> *selectedIdentifiers;
 @property (nonatomic, strong) UISegmentedControl *modeControl;
 @property (nonatomic, strong) UISearchController *cacheSearchController;
+@property (nonatomic, strong) UIBarButtonItem *primaryItem;
 @property (nonatomic, strong) UIBarButtonItem *refreshItem;
-@property (nonatomic, strong) UIBarButtonItem *infoItem;
-@property (nonatomic, strong) UIBarButtonItem *selectionItem;
-@property (nonatomic, strong) UIView *modeHeader;
-@property (nonatomic, strong) UIImageView *modeIcon;
-@property (nonatomic, strong) UILabel *modeTitleLabel;
-@property (nonatomic, strong) UILabel *modeBodyLabel;
+@property (nonatomic, strong) UILabel *introLabel;
 @end
 
 @implementation StorageRescueDedicatedViewController
@@ -445,7 +439,7 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 {
     if ((self = [super initWithStyle:UITableViewStyleInsetGrouped])) {
         _browserMode = SRBrowserModeApps;
-        _statusText = @"Storage access is not enabled";
+        _statusText = @"Run Prepare Access first";
         _appRecords = @[];
         _discardedRecords = @[];
         _selectedIdentifiers = [NSMutableSet set];
@@ -457,182 +451,63 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 {
     [super viewDidLoad];
     self.title = @"Storage Rescue";
-    self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeAlways;
-    self.navigationController.navigationBar.prefersLargeTitles = YES;
+    self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     self.tableView.rowHeight = UITableViewAutomaticDimension;
-    self.tableView.estimatedRowHeight = 68.0;
+    self.tableView.estimatedRowHeight = 62.0;
+
+    self.modeControl = [[UISegmentedControl alloc] initWithItems:@[@"Apps", @"Discarded", @"Staging"]];
+    self.modeControl.selectedSegmentIndex = SRBrowserModeApps;
+    [self.modeControl addTarget:self action:@selector(modeChanged:) forControlEvents:UIControlEventValueChanged];
+    self.navigationItem.titleView = self.modeControl;
 
     self.cacheSearchController = [[UISearchController alloc] initWithSearchResultsController:nil];
     self.cacheSearchController.obscuresBackgroundDuringPresentation = NO;
     self.cacheSearchController.searchResultsUpdater = self;
-    self.cacheSearchController.searchBar.placeholder = @"Search apps";
+    self.cacheSearchController.searchBar.placeholder = @"Search app or bundle ID";
     self.definesPresentationContext = YES;
 
-    self.refreshItem = [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh
-        target:self
-        action:@selector(scanCurrentMode)];
-    self.refreshItem.accessibilityLabel = @"Refresh cache scan";
+    self.primaryItem = [[UIBarButtonItem alloc] initWithTitle:@"Clean"
+                                                        style:UIBarButtonItemStylePlain
+                                                       target:self
+                                                       action:@selector(primaryAction)];
+    self.refreshItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh
+                                                                     target:self
+                                                                     action:@selector(scanCurrentMode)];
+    self.navigationItem.rightBarButtonItems = @[self.primaryItem, self.refreshItem];
 
-    self.infoItem = [[UIBarButtonItem alloc]
-        initWithImage:[UIImage systemImageNamed:@"info.circle"]
-        style:UIBarButtonItemStylePlain
-        target:self
-        action:@selector(showGuide)];
-    self.infoItem.accessibilityLabel = @"How Storage Rescue works";
-
-    self.selectionItem = [[UIBarButtonItem alloc]
-        initWithImage:[UIImage systemImageNamed:@"checklist"]
-        style:UIBarButtonItemStylePlain
-        target:nil
-        action:nil];
-    self.selectionItem.accessibilityLabel = @"Selection options";
-
-    self.navigationItem.rightBarButtonItems = @[self.refreshItem, self.infoItem];
-    [self buildModeHeader];
-    [self updateInterface];
-}
-
-- (void)viewDidAppear:(BOOL)animated
-{
-    [super viewDidAppear:animated];
-    if (self.guidePresentedThisLaunch) return;
-    self.guidePresentedThisLaunch = YES;
-    if (![[NSUserDefaults standardUserDefaults] boolForKey:SRGuideSeenKey]) {
-        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:SRGuideSeenKey];
-        [self showGuide];
-    }
+    [self buildIntroHeader];
+    [self updateChrome];
 }
 
 - (void)viewDidLayoutSubviews
 {
     [super viewDidLayoutSubviews];
-    [self sizeModeHeaderIfNeeded];
-}
-
-#pragma mark - Friendly header
-
-- (void)buildModeHeader
-{
-    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 220.0)];
-
-    UIStackView *rootStack = [[UIStackView alloc] initWithFrame:CGRectZero];
-    rootStack.translatesAutoresizingMaskIntoConstraints = NO;
-    rootStack.axis = UILayoutConstraintAxisVertical;
-    rootStack.spacing = 12.0;
-    [header addSubview:rootStack];
-
-    UISegmentedControl *segments = [[UISegmentedControl alloc] initWithItems:@[@"App Cache", @"Protected", @"Rescue"]];
-    segments.selectedSegmentIndex = SRBrowserModeApps;
-    [segments addTarget:self action:@selector(modeChanged:) forControlEvents:UIControlEventValueChanged];
-    self.modeControl = segments;
-    [rootStack addArrangedSubview:segments];
-
-    UIView *card = [[UIView alloc] initWithFrame:CGRectZero];
-    card.backgroundColor = UIColor.secondarySystemGroupedBackgroundColor;
-    card.layer.cornerRadius = 16.0;
-    card.layer.cornerCurve = kCACornerCurveContinuous;
-
-    UIImageView *icon = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"app.fill"]];
-    icon.translatesAutoresizingMaskIntoConstraints = NO;
-    icon.contentMode = UIViewContentModeScaleAspectFit;
-    icon.tintColor = UIColor.systemBlueColor;
-    self.modeIcon = icon;
-
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectZero];
-    title.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
-    title.adjustsFontForContentSizeCategory = YES;
-    self.modeTitleLabel = title;
-
-    UILabel *body = [[UILabel alloc] initWithFrame:CGRectZero];
-    body.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
-    body.textColor = UIColor.secondaryLabelColor;
-    body.numberOfLines = 0;
-    body.adjustsFontForContentSizeCategory = YES;
-    self.modeBodyLabel = body;
-
-    UIStackView *text = [[UIStackView alloc] initWithArrangedSubviews:@[title, body]];
-    text.axis = UILayoutConstraintAxisVertical;
-    text.spacing = 4.0;
-
-    UIStackView *row = [[UIStackView alloc] initWithArrangedSubviews:@[icon, text]];
-    row.translatesAutoresizingMaskIntoConstraints = NO;
-    row.axis = UILayoutConstraintAxisHorizontal;
-    row.alignment = UIStackViewAlignmentTop;
-    row.spacing = 12.0;
-    row.layoutMargins = UIEdgeInsetsMake(15, 15, 15, 15);
-    row.layoutMarginsRelativeArrangement = YES;
-    [card addSubview:row];
-    [rootStack addArrangedSubview:card];
-
-    [NSLayoutConstraint activateConstraints:@[
-        [rootStack.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:16.0],
-        [rootStack.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-16.0],
-        [rootStack.topAnchor constraintEqualToAnchor:header.topAnchor constant:8.0],
-        [rootStack.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:-12.0],
-        [row.leadingAnchor constraintEqualToAnchor:card.leadingAnchor],
-        [row.trailingAnchor constraintEqualToAnchor:card.trailingAnchor],
-        [row.topAnchor constraintEqualToAnchor:card.topAnchor],
-        [row.bottomAnchor constraintEqualToAnchor:card.bottomAnchor],
-        [icon.widthAnchor constraintEqualToConstant:30.0],
-        [icon.heightAnchor constraintEqualToConstant:30.0],
-    ]];
-
-    self.modeHeader = header;
-    self.tableView.tableHeaderView = header;
-    [self updateModeHeaderContent];
-}
-
-- (void)sizeModeHeaderIfNeeded
-{
-    if (!self.modeHeader) return;
+    if (!self.introLabel) return;
     CGFloat width = self.tableView.bounds.size.width;
-    CGRect frame = self.modeHeader.frame;
-    frame.size.width = width;
-    self.modeHeader.frame = frame;
-    [self.modeHeader setNeedsLayout];
-    [self.modeHeader layoutIfNeeded];
-
-    CGSize fitting = [self.modeHeader systemLayoutSizeFittingSize:CGSizeMake(width, UILayoutFittingCompressedSize.height)
-                                      withHorizontalFittingPriority:UILayoutPriorityRequired
-                                            verticalFittingPriority:UILayoutPriorityFittingSizeLevel];
-    CGFloat height = MAX(150.0, fitting.height);
-    if (fabs(frame.size.height - height) > 0.5) {
-        frame.size.height = height;
-        self.modeHeader.frame = frame;
-        self.tableView.tableHeaderView = self.modeHeader;
+    CGFloat horizontal = 20.0;
+    CGFloat contentWidth = MAX(0.0, width - horizontal * 2.0);
+    CGSize size = [self.introLabel sizeThatFits:CGSizeMake(contentWidth, CGFLOAT_MAX)];
+    self.introLabel.frame = CGRectMake(horizontal, 14.0, contentWidth, size.height);
+    UIView *header = self.introLabel.superview;
+    CGRect frame = header.frame;
+    CGFloat height = size.height + 28.0;
+    if (fabs(frame.size.height - height) > 0.5 || fabs(frame.size.width - width) > 0.5) {
+        header.frame = CGRectMake(0, 0, width, height);
+        self.tableView.tableHeaderView = header;
     }
 }
 
-- (void)updateModeHeaderContent
+- (void)buildIntroHeader
 {
-    if (self.browserMode == SRBrowserModeApps) {
-        self.modeIcon.image = [UIImage systemImageNamed:@"app.fill"];
-        self.modeIcon.tintColor = UIColor.systemBlueColor;
-        self.modeTitleLabel.text = @"Clear temporary app files";
-        self.modeBodyLabel.text = @"Storage Rescue only scans each app's cache and temporary folders. Your documents and normal app data are outside this cleanup scope.";
-    } else if (self.browserMode == SRBrowserModeDiscarded) {
-        self.modeIcon.image = [UIImage systemImageNamed:@"archivebox.fill"];
-        self.modeIcon.tintColor = UIColor.systemOrangeColor;
-        self.modeTitleLabel.text = @"Recover cache iOS left behind";
-        self.modeBodyLabel.text = @"Protected Cache shows CacheDelete leftovers when they exist. Selected items are moved into the Rescue area first; moving them alone does not free storage.";
-    } else {
-        self.modeIcon.image = [UIImage systemImageNamed:@"lifepreserver.fill"];
-        self.modeIcon.tintColor = UIColor.systemRedColor;
-        self.modeTitleLabel.text = @"Finish protected cleanup";
-        self.modeBodyLabel.text = @"Rescue handles cache that normal deletion could not remove. It verifies one real deletion before full cleanup becomes available.";
-    }
-    [self sizeModeHeaderIfNeeded];
-}
-
-#pragma mark - Guide
-
-- (void)showGuide
-{
-    StorageRescueGuideViewController *guide = [[StorageRescueGuideViewController alloc] init];
-    UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:guide];
-    navigation.modalPresentationStyle = UIModalPresentationPageSheet;
-    [self presentViewController:navigation animated:YES completion:nil];
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width, 150)];
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
+    label.numberOfLines = 0;
+    label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+    label.textColor = UIColor.secondaryLabelColor;
+    label.text = @"Recommended workflow: remove normal per-app cache in place. Storage Rescue only touches each app's Library/Caches and tmp. Protected CacheDelete/discarded data is staged with rename() into /var/mobile/Documents/test and then removed by the Solver. Moving data alone does not free storage. The staging folder is created automatically after Prepare Access if it is missing.";
+    [header addSubview:label];
+    self.introLabel = label;
+    self.tableView.tableHeaderView = header;
 }
 
 #pragma mark - Access
@@ -642,7 +517,7 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
     if (!kexploit_krw_ready()) {
         int result = kexploit_opa334();
         if (result != 0 || !kexploit_krw_ready()) {
-            if (errorText) *errorText = [NSString stringWithFormat:@"Storage access could not be initialized (%d).", result];
+            if (errorText) *errorText = [NSString stringWithFormat:@"DarkSword KRW failed (%d)", result];
             return NO;
         }
     }
@@ -650,20 +525,20 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
     if (check_sandbox_var_rw() != 0) {
         int result = escape_sbx_demo2();
         if (result != 0 || check_sandbox_var_rw() != 0) {
-            if (errorText) *errorText = [NSString stringWithFormat:@"Storage access could not be granted (%d).", result];
+            if (errorText) *errorText = [NSString stringWithFormat:@"Root R/W extension failed (%d)", result];
             return NO;
         }
     }
 
     NSError *folderError = nil;
     if (!SREnsureDirectory(SRTargetPath, &folderError)) {
-        if (errorText) *errorText = folderError.localizedDescription ?: @"The Rescue area could not be prepared.";
+        if (errorText) *errorText = [NSString stringWithFormat:@"Could not create %@: %@", SRTargetPath, folderError.localizedDescription ?: @"unknown error"];
         return NO;
     }
 
     DIR *appRoot = opendir(SRAppDataRoot.fileSystemRepresentation);
     if (!appRoot) {
-        if (errorText) *errorText = @"Installed app storage could not be enumerated.";
+        if (errorText) *errorText = [NSString stringWithFormat:@"Cannot enumerate app containers: errno=%d (%s)", errno, strerror(errno)];
         return NO;
     }
     closedir(appRoot);
@@ -674,8 +549,9 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 {
     if (self.busy) return;
     self.busy = YES;
-    self.statusText = @"Enabling storage access…";
-    [self updateInterface];
+    self.statusText = @"Preparing access…";
+    [self updateChrome];
+    [self.tableView reloadData];
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSString *errorText = nil;
@@ -685,13 +561,11 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
             self.busy = NO;
             self.prepared = ok;
             self.targetExists = targetExists;
-            self.statusText = ok ? @"Storage access ready" : (errorText ?: @"Storage access failed");
-            [self updateInterface];
-            if (ok) {
-                [self scanCurrentMode];
-            } else {
-                [self showSimpleAlert:@"Storage Access Failed" message:self.statusText];
-            }
+            self.statusText = ok ? @"Prepared" : (errorText ?: @"Prepare failed");
+            [self updateChrome];
+            [self.tableView reloadData];
+            if (ok) [self scanCurrentMode];
+            else [self showSimpleAlert:@"Prepare Access Failed" message:self.statusText];
         });
     });
 }
@@ -699,8 +573,7 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 - (BOOL)requirePrepared
 {
     if (self.prepared) return YES;
-    [self showSimpleAlert:@"Enable Storage Access First"
-                  message:@"Storage Rescue never starts low-level access automatically. Tap Enable Storage Access before scanning or cleaning."];
+    [self showSimpleAlert:@"Prepare Access First" message:@"Scanning and filesystem changes never start DarkSword automatically. Run Prepare Access first."];
     return NO;
 }
 
@@ -751,8 +624,8 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
     closedir(directory);
 
     [records sortUsingComparator:^NSComparisonResult(SRCacheRecord *left, SRCacheRecord *right) {
-        uint64_t leftSize = left.totalBytes;
-        uint64_t rightSize = right.totalBytes;
+        uint64_t leftSize = left.cacheBytes + left.temporaryBytes;
+        uint64_t rightSize = right.cacheBytes + right.temporaryBytes;
         if (leftSize > rightSize) return NSOrderedAscending;
         if (leftSize < rightSize) return NSOrderedDescending;
         return [left.displayName localizedCaseInsensitiveCompare:right.displayName];
@@ -801,10 +674,9 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
     if (self.busy || ![self requirePrepared]) return;
     SRBrowserMode mode = self.browserMode;
     self.busy = YES;
-    if (mode == SRBrowserModeApps) self.statusText = @"Scanning app cache…";
-    else if (mode == SRBrowserModeDiscarded) self.statusText = @"Checking protected cache…";
-    else self.statusText = @"Checking Rescue area…";
-    [self updateInterface];
+    self.statusText = @"Scanning…";
+    [self updateChrome];
+    [self.tableView reloadData];
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSArray<SRCacheRecord *> *apps = nil;
@@ -826,30 +698,27 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
             if (mode == SRBrowserModeApps && apps) {
                 self.appRecords = apps;
                 uint64_t total = 0;
-                for (SRCacheRecord *record in apps) total += record.totalBytes;
-                self.statusText = apps.count
-                    ? [NSString stringWithFormat:@"%@ available across %lu apps", SRFormatBytes(total), (unsigned long)apps.count]
-                    : @"No app cache found";
+                for (SRCacheRecord *record in apps) total += record.cacheBytes + record.temporaryBytes;
+                self.statusText = [NSString stringWithFormat:@"%lu apps • %@", (unsigned long)apps.count, SRFormatBytes(total)];
             } else if (mode == SRBrowserModeDiscarded && discarded) {
                 self.discardedRecords = discarded;
                 self.discardedRootExists = discardedExists;
                 uint64_t total = 0;
                 for (SRCacheRecord *record in discarded) total += record.cacheBytes;
                 self.statusText = discardedExists
-                    ? (discarded.count ? [NSString stringWithFormat:@"%@ protected cache found", SRFormatBytes(total)] : @"Protected cache is empty")
-                    : @"No protected CacheDelete folder on this device";
+                    ? [NSString stringWithFormat:@"%lu discarded entries • %@", (unsigned long)discarded.count, SRFormatBytes(total)]
+                    : @"discardedCaches is not present on this device";
             } else if (mode == SRBrowserModeStaging) {
                 self.stagingUsage = staging;
-                self.statusText = staging.files || staging.allocatedBytes
-                    ? [NSString stringWithFormat:@"%@ waiting in Rescue", SRFormatBytes(staging.allocatedBytes)]
-                    : @"Rescue area is empty";
+                self.statusText = [NSString stringWithFormat:@"Staging • %@ • %lu files", SRFormatBytes(staging.allocatedBytes), (unsigned long)staging.files];
             }
-            [self updateInterface];
+            [self updateChrome];
+            [self.tableView reloadData];
         });
     });
 }
 
-#pragma mark - Selection and summaries
+#pragma mark - Filtering and UI state
 
 - (NSArray<SRCacheRecord *> *)recordsForCurrentMode
 {
@@ -877,76 +746,31 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 - (uint64_t)selectedBytes
 {
     uint64_t total = 0;
-    for (SRCacheRecord *record in [self selectedRecords]) total += record.totalBytes;
+    for (SRCacheRecord *record in [self selectedRecords]) total += record.cacheBytes + record.temporaryBytes;
     return total;
 }
 
-- (uint64_t)availableBytesForCurrentMode
+- (void)updateChrome
 {
-    uint64_t total = 0;
-    NSArray<SRCacheRecord *> *source = self.browserMode == SRBrowserModeApps ? self.appRecords : self.discardedRecords;
-    for (SRCacheRecord *record in source) total += record.totalBytes;
-    return total;
-}
-
-- (BOOL)hasStagedData
-{
-    return self.stagingUsage.files > 0 || self.stagingUsage.allocatedBytes > 0 || self.stagingUsage.dirs > 1;
-}
-
-- (void)updateSelectionMenu
-{
-    if (self.browserMode == SRBrowserModeStaging) {
-        self.navigationItem.leftBarButtonItem = nil;
-        return;
-    }
-
-    NSArray<SRCacheRecord *> *visible = [self recordsForCurrentMode];
-    if (!visible.count || !self.prepared || self.busy) {
-        self.navigationItem.leftBarButtonItem = nil;
-        return;
-    }
-
-    __weak typeof(self) weakSelf = self;
-    UIAction *selectAll = [UIAction actionWithTitle:@"Select All Visible"
-                                              image:[UIImage systemImageNamed:@"checkmark.circle"]
-                                         identifier:nil
-                                            handler:^(__kindof UIAction *action) {
-        __strong typeof(weakSelf) self = weakSelf;
-        if (!self) return;
-        for (SRCacheRecord *record in [self recordsForCurrentMode]) {
-            [self.selectedIdentifiers addObject:record.identifier];
-        }
-        [self updateInterface];
-    }];
-    UIAction *clear = [UIAction actionWithTitle:@"Clear Selection"
-                                          image:[UIImage systemImageNamed:@"circle"]
-                                     identifier:nil
-                                        handler:^(__kindof UIAction *action) {
-        __strong typeof(weakSelf) self = weakSelf;
-        [self.selectedIdentifiers removeAllObjects];
-        [self updateInterface];
-    }];
-    clear.attributes = self.selectedIdentifiers.count ? UIMenuElementAttributesNone : UIMenuElementAttributesDisabled;
-    self.selectionItem.menu = [UIMenu menuWithTitle:@"Selection" children:@[selectAll, clear]];
-    self.navigationItem.leftBarButtonItem = self.selectionItem;
-}
-
-- (void)updateInterface
-{
-    self.refreshItem.enabled = self.prepared && !self.busy;
-    self.infoItem.enabled = !self.busy;
-    self.modeControl.enabled = !self.busy;
-
-    if (self.browserMode == SRBrowserModeApps || self.browserMode == SRBrowserModeDiscarded) {
+    NSString *title = @"Clean";
+    BOOL enabled = !self.busy;
+    if (self.browserMode == SRBrowserModeApps) {
+        title = @"Clean";
+        enabled = enabled && self.prepared && self.selectedIdentifiers.count > 0;
+        self.navigationItem.searchController = self.cacheSearchController;
+    } else if (self.browserMode == SRBrowserModeDiscarded) {
+        title = @"Stage";
+        enabled = enabled && self.prepared && self.selectedIdentifiers.count > 0;
         self.navigationItem.searchController = self.cacheSearchController;
     } else {
+        title = @"Solver";
+        enabled = enabled && self.prepared;
         self.navigationItem.searchController = nil;
     }
-
-    [self updateModeHeaderContent];
-    [self updateSelectionMenu];
-    [self.tableView reloadData];
+    self.primaryItem.title = title;
+    self.primaryItem.enabled = enabled;
+    self.refreshItem.enabled = self.prepared && !self.busy;
+    self.modeControl.enabled = !self.busy;
 }
 
 - (void)modeChanged:(UISegmentedControl *)sender
@@ -954,32 +778,30 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
     self.browserMode = (SRBrowserMode)sender.selectedSegmentIndex;
     [self.selectedIdentifiers removeAllObjects];
     self.cacheSearchController.searchBar.text = @"";
-    [self updateInterface];
+    [self updateChrome];
+    [self.tableView reloadData];
     if (self.prepared) [self scanCurrentMode];
 }
 
 - (void)updateSearchResultsForSearchController:(UISearchController *)searchController
 {
-    [self updateSelectionMenu];
-    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:2] withRowAnimation:UITableViewRowAnimationNone];
+    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:1] withRowAnimation:UITableViewRowAnimationNone];
 }
 
-#pragma mark - App cache cleaning
+#pragma mark - Cleaning normal app caches
 
 - (void)cleanSelectedApps
 {
     NSArray<SRCacheRecord *> *selected = [self selectedRecords];
     if (!selected.count) return;
     uint64_t bytes = [self selectedBytes];
-    NSString *message = [NSString stringWithFormat:
-        @"Clear %@ of temporary cache from %lu selected app%@?\n\nOnly Library/Caches and tmp are touched. Close the selected apps first so they do not immediately recreate files while cleaning.",
-        SRFormatBytes(bytes), (unsigned long)selected.count, selected.count == 1 ? @"" : @"s"];
+    NSString *message = [NSString stringWithFormat:@"Remove only Library/Caches and tmp contents for %lu selected apps (%@)? Close those apps first. Their cache directories remain in place and may be recreated by iOS/apps.", (unsigned long)selected.count, SRFormatBytes(bytes)];
 
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Clear Selected Cache?"
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Clean Selected App Caches"
                                                                    message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Clear Cache"
+    [alert addAction:[UIAlertAction actionWithTitle:@"Clean In Place"
                                               style:UIAlertActionStyleDestructive
                                             handler:^(__unused UIAlertAction *action) {
         [self performCleanAppRecords:selected];
@@ -991,8 +813,9 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 {
     if (self.busy) return;
     self.busy = YES;
-    self.statusText = @"Clearing selected app cache…";
-    [self updateInterface];
+    self.statusText = @"Cleaning app caches…";
+    [self updateChrome];
+    [self.tableView reloadData];
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         SRBrowseDeleteSummary total = {0};
@@ -1026,26 +849,25 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
             self.busy = NO;
             self.appRecords = updated;
             [self.selectedIdentifiers removeAllObjects];
-            self.statusText = [NSString stringWithFormat:@"%@ cleared", SRFormatBytes(total.removedAllocatedBytes)];
-            [self updateInterface];
+            self.statusText = [NSString stringWithFormat:@"Removed %lu items • %@ estimated", (unsigned long)(total.removedFiles + total.removedDirs), SRFormatBytes(total.removedAllocatedBytes)];
+            [self updateChrome];
+            [self.tableView reloadData];
 
             if (total.failures > 0 && failedRecords.count > 0) {
-                NSString *message = [NSString stringWithFormat:
-                    @"Most removable cache was cleared, but %lu filesystem operation%@ were blocked. Storage Rescue can move the remaining cache into Rescue and use the protected cleanup flow there.",
-                    (unsigned long)total.failures, total.failures == 1 ? @"" : @"s"];
-                UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Some Cache Is Protected"
+                NSString *message = [NSString stringWithFormat:@"%lu filesystem operations were denied. Storage Rescue can stage the remaining top-level cache entries into %@ with rename(), then the proven Solver can remove them there.", (unsigned long)total.failures, SRTargetPath];
+                UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Some Cache Was Protected"
                                                                                message:message
                                                                         preferredStyle:UIAlertControllerStyleAlert];
-                [alert addAction:[UIAlertAction actionWithTitle:@"Leave It" style:UIAlertActionStyleCancel handler:nil]];
-                [alert addAction:[UIAlertAction actionWithTitle:@"Move to Rescue"
+                [alert addAction:[UIAlertAction actionWithTitle:@"Done" style:UIAlertActionStyleCancel handler:nil]];
+                [alert addAction:[UIAlertAction actionWithTitle:@"Stage Remaining"
                                                           style:UIAlertActionStyleDefault
                                                         handler:^(__unused UIAlertAction *action) {
                     [self stageAppRecords:failedRecords];
                 }]];
                 [self presentViewController:alert animated:YES completion:nil];
             } else {
-                [self showSimpleAlert:@"Cache Cleared"
-                              message:[NSString stringWithFormat:@"Estimated storage removed: %@. Apps may recreate cache as you use them again.", SRFormatBytes(total.removedAllocatedBytes)]];
+                [self showSimpleAlert:@"Cleanup Complete"
+                              message:[NSString stringWithFormat:@"Removed %lu files/directories. Estimated allocated space removed: %@.", (unsigned long)(total.removedFiles + total.removedDirs), SRFormatBytes(total.removedAllocatedBytes)]];
             }
         });
     });
@@ -1065,17 +887,19 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 {
     if (self.busy || !records.count) return;
     self.busy = YES;
-    self.statusText = @"Moving blocked cache to Rescue…";
-    [self updateInterface];
+    self.statusText = @"Staging protected app cache…";
+    [self updateChrome];
+    [self.tableView reloadData];
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *targetError = nil;
         if (!SREnsureDirectory(SRTargetPath, &targetError)) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.busy = NO;
-                self.statusText = @"Rescue move failed";
-                [self updateInterface];
-                [self showSimpleAlert:@"Move Failed" message:targetError.localizedDescription ?: @"The Rescue area could not be prepared."];
+                self.statusText = @"Staging failed";
+                [self updateChrome];
+                [self.tableView reloadData];
+                [self showSimpleAlert:@"Staging Failed" message:targetError.localizedDescription ?: @"Could not create test folder"];
             });
             return;
         }
@@ -1085,9 +909,10 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
         if (!SREnsureDirectory(session, &sessionError)) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.busy = NO;
-                self.statusText = @"Rescue move failed";
-                [self updateInterface];
-                [self showSimpleAlert:@"Move Failed" message:sessionError.localizedDescription ?: @"A Rescue session could not be created."];
+                self.statusText = @"Staging failed";
+                [self updateChrome];
+                [self.tableView reloadData];
+                [self showSimpleAlert:@"Staging Failed" message:sessionError.localizedDescription ?: @"Could not create staging session"];
             });
             return;
         }
@@ -1113,41 +938,37 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
         }
 
         NSArray<SRCacheRecord *> *updated = [self loadAppRecords];
-        SRBrowseUsage staging = SRScanPath(SRTargetPath);
         dispatch_async(dispatch_get_main_queue(), ^{
             self.busy = NO;
             self.appRecords = updated;
-            self.stagingUsage = staging;
             self.targetExists = SRDirectoryExists(SRTargetPath);
-            self.statusText = [NSString stringWithFormat:@"%lu blocked cache item%@ moved to Rescue", (unsigned long)total.movedItems, total.movedItems == 1 ? @"" : @"s"];
-            [self updateInterface];
+            self.statusText = [NSString stringWithFormat:@"Staged %lu items • %lu failures", (unsigned long)total.movedItems, (unsigned long)total.failures];
+            [self updateChrome];
+            [self.tableView reloadData];
             if (total.movedItems > 0) {
-                [self offerOpenRescueWithTitle:@"Ready for Rescue"
-                                       message:[NSString stringWithFormat:@"%lu blocked cache item%@ were moved into the Rescue area. This move does not free storage by itself; open Rescue to finish the cleanup.%@",
-                                                (unsigned long)total.movedItems, total.movedItems == 1 ? @"" : @"s",
-                                                total.failures ? [NSString stringWithFormat:@"\n\n%lu item%@ could not be moved.", (unsigned long)total.failures, total.failures == 1 ? @"" : @"s"] : @""]];
+                [self offerOpenSolverWithTitle:@"Cache Staged"
+                                       message:[NSString stringWithFormat:@"Moved %lu top-level cache entries into %@. This move does not free storage; run the Solver to actually unlink the staged data.%@", (unsigned long)total.movedItems, SRTargetPath, total.failures ? [NSString stringWithFormat:@"\n\n%lu entries could not be moved.", (unsigned long)total.failures] : @""]];
             } else {
-                [self showSimpleAlert:@"Nothing Moved" message:@"The remaining cache could not be moved into Rescue."];
+                [self showSimpleAlert:@"Nothing Was Staged" message:[NSString stringWithFormat:@"No remaining cache entry could be moved. Failures: %lu.", (unsigned long)total.failures]];
             }
         });
     });
 }
 
-#pragma mark - Protected Cache staging
+#pragma mark - Discarded CacheDelete staging
 
 - (void)stageSelectedDiscarded
 {
     NSArray<SRCacheRecord *> *selected = [self selectedRecords];
     if (!selected.count) return;
     uint64_t bytes = [self selectedBytes];
-    NSString *message = [NSString stringWithFormat:
-        @"Move %@ of protected cache into Rescue?\n\nThis is a fast filesystem move, not a copy. It does not free storage until the Rescue cleanup finishes.", SRFormatBytes(bytes)];
+    NSString *message = [NSString stringWithFormat:@"Stage %lu selected discarded-cache entries (%@) into %@? rename() on the same /var filesystem is used; it does not duplicate the data and does not free space until the Solver deletes it.", (unsigned long)selected.count, SRFormatBytes(bytes), SRTargetPath];
 
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Move Selected Cache to Rescue?"
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Stage Discarded Cache"
                                                                    message:message
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Move to Rescue"
+    [alert addAction:[UIAlertAction actionWithTitle:@"Stage"
                                               style:UIAlertActionStyleDestructive
                                             handler:^(__unused UIAlertAction *action) {
         [self performStageDiscarded:selected];
@@ -1159,29 +980,32 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 {
     if (self.busy) return;
     self.busy = YES;
-    self.statusText = @"Moving protected cache to Rescue…";
-    [self updateInterface];
+    self.statusText = @"Staging discarded cache…";
+    [self updateChrome];
+    [self.tableView reloadData];
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *targetError = nil;
         if (!SREnsureDirectory(SRTargetPath, &targetError)) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.busy = NO;
-                self.statusText = @"Rescue move failed";
-                [self updateInterface];
-                [self showSimpleAlert:@"Move Failed" message:targetError.localizedDescription ?: @"The Rescue area could not be prepared."];
+                self.statusText = @"Staging failed";
+                [self updateChrome];
+                [self.tableView reloadData];
+                [self showSimpleAlert:@"Staging Failed" message:targetError.localizedDescription ?: @"Could not create test folder"];
             });
             return;
         }
 
-        NSString *session = [self newStagingSessionWithPrefix:@"ProtectedCache"];
+        NSString *session = [self newStagingSessionWithPrefix:@"DiscardedCaches"];
         NSError *sessionError = nil;
         if (!SREnsureDirectory(session, &sessionError)) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 self.busy = NO;
-                self.statusText = @"Rescue move failed";
-                [self updateInterface];
-                [self showSimpleAlert:@"Move Failed" message:sessionError.localizedDescription ?: @"A Rescue session could not be created."];
+                self.statusText = @"Staging failed";
+                [self updateChrome];
+                [self.tableView reloadData];
+                [self showSimpleAlert:@"Staging Failed" message:sessionError.localizedDescription ?: @"Could not create staging session"];
             });
             return;
         }
@@ -1195,43 +1019,40 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
 
         BOOL rootExists = NO;
         NSArray<SRCacheRecord *> *updated = [self loadDiscardedRecordsRootExists:&rootExists];
-        SRBrowseUsage staging = SRScanPath(SRTargetPath);
         dispatch_async(dispatch_get_main_queue(), ^{
             self.busy = NO;
             self.discardedRecords = updated;
             self.discardedRootExists = rootExists;
-            self.stagingUsage = staging;
             self.targetExists = SRDirectoryExists(SRTargetPath);
             [self.selectedIdentifiers removeAllObjects];
-            self.statusText = [NSString stringWithFormat:@"%lu protected entr%@ moved to Rescue", (unsigned long)moved, moved == 1 ? @"y" : @"ies"];
-            [self updateInterface];
+            self.statusText = [NSString stringWithFormat:@"Staged %lu discarded entries • %lu failures", (unsigned long)moved, (unsigned long)failed];
+            [self updateChrome];
+            [self.tableView reloadData];
             if (moved > 0) {
-                [self offerOpenRescueWithTitle:@"Ready for Rescue"
-                                       message:[NSString stringWithFormat:@"%@ is now waiting in the Rescue area. Open Rescue to actually free the storage.%@",
-                                                SRFormatBytes(staging.allocatedBytes),
-                                                failed ? [NSString stringWithFormat:@"\n\n%lu selected entr%@ could not be moved.", (unsigned long)failed, failed == 1 ? @"y" : @"ies"] : @""]];
+                [self offerOpenSolverWithTitle:@"Discarded Cache Staged"
+                                       message:[NSString stringWithFormat:@"Moved %lu entries into %@. Run the Solver now to actually free the space.%@", (unsigned long)moved, SRTargetPath, failed ? [NSString stringWithFormat:@"\n\n%lu entries could not be moved.", (unsigned long)failed] : @""]];
             } else {
-                [self showSimpleAlert:@"Nothing Moved" message:@"The selected protected cache could not be moved into Rescue."];
+                [self showSimpleAlert:@"Nothing Was Staged" message:[NSString stringWithFormat:@"All %lu selected entries failed to move.", (unsigned long)failed]];
             }
         });
     });
 }
 
-#pragma mark - Rescue
+#pragma mark - Solver and alerts
 
-- (void)openRescue
+- (void)openSolver
 {
     if (![self requirePrepared]) return;
-    StorageRescueRecoveryViewController *rescue = [[StorageRescueRecoveryViewController alloc] init];
-    [self.navigationController pushViewController:rescue animated:YES];
+    StorageRescueSolverViewController *solver = [[StorageRescueSolverViewController alloc] init];
+    [self.navigationController pushViewController:solver animated:YES];
 }
 
-- (void)offerOpenRescueWithTitle:(NSString *)title message:(NSString *)message
+- (void)offerOpenSolverWithTitle:(NSString *)title message:(NSString *)message
 {
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Later" style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Open Rescue" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
-        [self openRescue];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Open Solver" style:UIAlertActionStyleDefault handler:^(__unused UIAlertAction *action) {
+        [self openSolver];
     }]];
     [self presentViewController:alert animated:YES completion:nil];
 }
@@ -1243,185 +1064,81 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-#pragma mark - Table helpers
-
-- (UITableViewCell *)accessCell
+- (void)primaryAction
 {
-    UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
-    cell.detailTextLabel.numberOfLines = 0;
-    if (self.busy && !self.prepared) {
-        cell.textLabel.text = @"Enabling Storage Access…";
-        cell.detailTextLabel.text = @"Please wait. No files are being deleted.";
-        UIActivityIndicatorView *spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-        [spinner startAnimating];
-        cell.accessoryView = spinner;
-        cell.imageView.image = [UIImage systemImageNamed:@"shield.lefthalf.filled"];
-        cell.imageView.tintColor = UIColor.systemBlueColor;
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    } else if (self.prepared) {
-        cell.textLabel.text = @"Storage Access Ready";
-        cell.detailTextLabel.text = self.busy ? self.statusText : @"Scanning and cleanup are available for this launch.";
-        cell.imageView.image = [UIImage systemImageNamed:@"checkmark.shield.fill"];
-        cell.imageView.tintColor = UIColor.systemGreenColor;
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    } else {
-        cell.textLabel.text = @"Enable Storage Access";
-        cell.detailTextLabel.text = @"Required once per launch before Storage Rescue can scan or clean. This step does not delete files.";
-        cell.textLabel.textColor = UIColor.systemBlueColor;
-        cell.imageView.image = [UIImage systemImageNamed:@"shield.lefthalf.filled"];
-        cell.imageView.tintColor = UIColor.systemBlueColor;
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    }
-    return cell;
-}
-
-- (UITableViewCell *)summaryCellForRow:(NSInteger)row
-{
-    if (self.browserMode == SRBrowserModeStaging) {
-        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
-        if (row == 0) {
-            cell.textLabel.text = @"Waiting in Rescue";
-            cell.detailTextLabel.text = [self hasStagedData]
-                ? [NSString stringWithFormat:@"%@ • %lu files", SRFormatBytes(self.stagingUsage.allocatedBytes), (unsigned long)self.stagingUsage.files]
-                : @"Nothing is currently waiting for protected cleanup.";
-            cell.imageView.image = [UIImage systemImageNamed:@"externaldrive.fill"];
-            cell.imageView.tintColor = [self hasStagedData] ? UIColor.systemOrangeColor : UIColor.systemGreenColor;
-            cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        } else {
-            BOOL enabled = self.prepared && !self.busy && [self hasStagedData];
-            cell.textLabel.text = enabled ? @"Open Rescue" : @"Nothing to Rescue";
-            cell.detailTextLabel.text = enabled
-                ? @"Verify deletion, then free all staged cache."
-                : @"Move protected cache here first, or refresh after staging data.";
-            cell.textLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
-            cell.textLabel.textColor = enabled ? UIColor.systemRedColor : UIColor.tertiaryLabelColor;
-            cell.imageView.image = [UIImage systemImageNamed:enabled ? @"lifepreserver.fill" : @"checkmark.circle.fill"];
-            cell.imageView.tintColor = enabled ? UIColor.systemRedColor : UIColor.systemGreenColor;
-            cell.accessoryType = enabled ? UITableViewCellAccessoryDisclosureIndicator : UITableViewCellAccessoryNone;
-            cell.userInteractionEnabled = enabled;
-        }
-        return cell;
-    }
-
-    UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
-    if (row == 0) {
-        uint64_t available = [self availableBytesForCurrentMode];
-        cell.textLabel.text = self.browserMode == SRBrowserModeApps ? @"Recoverable Cache" : @"Protected Cache Found";
-        cell.detailTextLabel.text = self.prepared ? SRFormatBytes(available) : @"Enable storage access to scan";
-        cell.imageView.image = [UIImage systemImageNamed:@"internaldrive.fill"];
-        cell.imageView.tintColor = UIColor.systemBlueColor;
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    } else if (row == 1) {
-        NSUInteger count = [self selectedRecords].count;
-        cell.textLabel.text = @"Selected";
-        cell.detailTextLabel.text = count
-            ? [NSString stringWithFormat:@"%lu item%@ • %@", (unsigned long)count, count == 1 ? @"" : @"s", SRFormatBytes([self selectedBytes])]
-            : @"Nothing selected";
-        cell.imageView.image = [UIImage systemImageNamed:@"checkmark.circle"];
-        cell.imageView.tintColor = count ? UIColor.systemBlueColor : UIColor.tertiaryLabelColor;
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    } else {
-        BOOL enabled = self.prepared && !self.busy && [self selectedRecords].count > 0;
-        if (self.browserMode == SRBrowserModeApps) {
-            cell.textLabel.text = enabled ? @"Clear Selected Cache" : @"Select Apps to Clean";
-            cell.detailTextLabel.text = @"Deletes only cache and temporary files from the selected apps.";
-            cell.imageView.image = [UIImage systemImageNamed:@"trash.fill"];
-            cell.textLabel.textColor = enabled ? UIColor.systemRedColor : UIColor.tertiaryLabelColor;
-            cell.imageView.tintColor = enabled ? UIColor.systemRedColor : UIColor.tertiaryLabelColor;
-        } else {
-            cell.textLabel.text = enabled ? @"Move Selected to Rescue" : @"Select Protected Cache";
-            cell.detailTextLabel.text = @"Moves selected leftovers into the protected Rescue area before deletion.";
-            cell.imageView.image = [UIImage systemImageNamed:@"arrow.down.to.line.compact"];
-            cell.textLabel.textColor = enabled ? UIColor.systemOrangeColor : UIColor.tertiaryLabelColor;
-            cell.imageView.tintColor = enabled ? UIColor.systemOrangeColor : UIColor.tertiaryLabelColor;
-        }
-        cell.textLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
-        cell.detailTextLabel.numberOfLines = 0;
-        cell.userInteractionEnabled = enabled;
-        cell.accessoryType = enabled ? UITableViewCellAccessoryDisclosureIndicator : UITableViewCellAccessoryNone;
-    }
-    return cell;
-}
-
-- (UIView *)accessoryForRecord:(SRCacheRecord *)record selected:(BOOL)selected
-{
-    UILabel *size = [[UILabel alloc] initWithFrame:CGRectZero];
-    size.text = SRFormatBytes(record.totalBytes);
-    size.font = [UIFont monospacedDigitSystemFontOfSize:13.0 weight:UIFontWeightMedium];
-    size.textColor = UIColor.secondaryLabelColor;
-
-    UIImageView *check = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:selected ? @"checkmark.circle.fill" : @"circle"]];
-    check.tintColor = selected ? UIColor.systemBlueColor : UIColor.tertiaryLabelColor;
-    [check.widthAnchor constraintEqualToConstant:22.0].active = YES;
-    [check.heightAnchor constraintEqualToConstant:22.0].active = YES;
-
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[size, check]];
-    stack.axis = UILayoutConstraintAxisHorizontal;
-    stack.alignment = UIStackViewAlignmentCenter;
-    stack.spacing = 8.0;
-    return stack;
+    if (self.browserMode == SRBrowserModeApps) [self cleanSelectedApps];
+    else if (self.browserMode == SRBrowserModeDiscarded) [self stageSelectedDiscarded];
+    else [self openSolver];
 }
 
 #pragma mark - UITableView
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
 {
-    return 3;
+    return 2;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
-    if (section == 0) return 1;
-    if (section == 1) return self.browserMode == SRBrowserModeStaging ? 2 : 3;
+    if (section == 0) return 4;
     if (self.browserMode == SRBrowserModeStaging) return 1;
-    return MAX((NSInteger)[self recordsForCurrentMode].count, 1);
+    NSArray *records = [self recordsForCurrentMode];
+    return MAX((NSInteger)records.count, 1);
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
 {
-    if (section == 0) return @"Storage Access";
-    if (section == 1) return @"Summary";
-    if (self.browserMode == SRBrowserModeApps) return @"Applications";
-    if (self.browserMode == SRBrowserModeDiscarded) return @"Protected Cache";
-    return @"Rescue Area";
+    if (section == 0) return @"Access & Safety";
+    if (self.browserMode == SRBrowserModeApps) return @"Apps with cache";
+    if (self.browserMode == SRBrowserModeDiscarded) return @"CacheDelete discarded entries";
+    return @"Staging target";
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
 {
-    if (section == 0 && !self.prepared) {
-        return @"Access is explicit by design. Scanning and cleanup never start it automatically.";
+    if (section == 0) {
+        return [NSString stringWithFormat:@"Hard staging target: %@. It is created automatically by Prepare Access if missing.", SRTargetPath];
     }
-    if (section == 2 && self.browserMode == SRBrowserModeApps) {
-        return @"Only Library/Caches and tmp inside validated app containers are included. Cache root folders are preserved.";
+    if (self.browserMode == SRBrowserModeApps) {
+        return @"Only each validated app container's Library/Caches and tmp contents are eligible. The cache root directories themselves are preserved.";
     }
-    if (section == 2 && self.browserMode == SRBrowserModeDiscarded) {
-        return self.discardedRootExists
-            ? @"These are CacheDelete leftovers managed by iOS. Storage Rescue moves selected entries into Rescue before deleting them."
-            : @"This system-managed cache does not exist on every device. Storage Rescue never creates it when iOS has not created it.";
+    if (self.browserMode == SRBrowserModeDiscarded) {
+        return [NSString stringWithFormat:@"Optional system-managed source: %@. If iOS has not created it, Storage Rescue reports it as absent and does not fabricate that system directory.", SRDiscardedRoot];
     }
-    if (section == 2 && self.browserMode == SRBrowserModeStaging) {
-        return @"Items in Rescue still occupy storage until protected cleanup successfully deletes them.";
-    }
-    return nil;
+    return @"Staged bytes still occupy storage until the Solver verifies a real unlink and deletes the staged tree.";
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    if (indexPath.section == 0) return [self accessCell];
-    if (indexPath.section == 1) return [self summaryCellForRow:indexPath.row];
+    if (indexPath.section == 0) {
+        UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1 reuseIdentifier:nil];
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        if (indexPath.row == 0) {
+            cell.textLabel.text = @"Prepare Access";
+            cell.detailTextLabel.text = self.statusText;
+            cell.accessoryType = UITableViewCellAccessoryNone;
+        } else if (indexPath.row == 1) {
+            cell.textLabel.text = @"Target Folder";
+            cell.detailTextLabel.text = self.targetExists ? @"Ready" : @"Missing";
+            cell.accessoryType = UITableViewCellAccessoryNone;
+        } else if (indexPath.row == 2) {
+            cell.textLabel.text = self.browserMode == SRBrowserModeApps ? @"Scan App Caches" : (self.browserMode == SRBrowserModeDiscarded ? @"Scan Discarded Caches" : @"Scan Staging Folder");
+            cell.detailTextLabel.text = self.busy ? @"Working…" : @"Refresh";
+            cell.accessoryType = UITableViewCellAccessoryNone;
+        } else {
+            cell.textLabel.text = @"Open Solver";
+            cell.detailTextLabel.text = @"Verified unlink";
+        }
+        return cell;
+    }
 
     if (self.browserMode == SRBrowserModeStaging) {
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
-        BOOL hasData = [self hasStagedData];
-        cell.textLabel.text = hasData ? @"Staged Cache" : @"Rescue Area Is Empty";
-        cell.detailTextLabel.text = hasData
-            ? [NSString stringWithFormat:@"%@ • %lu files • %lu folders", SRFormatBytes(self.stagingUsage.allocatedBytes), (unsigned long)self.stagingUsage.files, (unsigned long)MAX((NSInteger)self.stagingUsage.dirs - 1, 0)]
-            : @"Protected cache moved here will appear in this section.";
-        cell.detailTextLabel.numberOfLines = 0;
-        cell.imageView.image = [UIImage systemImageNamed:hasData ? @"archivebox.fill" : @"checkmark.circle.fill"];
-        cell.imageView.tintColor = hasData ? UIColor.systemOrangeColor : UIColor.systemGreenColor;
-        cell.accessoryType = hasData ? UITableViewCellAccessoryDisclosureIndicator : UITableViewCellAccessoryNone;
-        cell.userInteractionEnabled = hasData;
+        cell.textLabel.text = SRTargetPath;
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@ allocated • %lu files • %lu dirs", SRFormatBytes(self.stagingUsage.allocatedBytes), (unsigned long)self.stagingUsage.files, (unsigned long)self.stagingUsage.dirs];
+        cell.detailTextLabel.numberOfLines = 2;
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
         return cell;
     }
 
@@ -1429,40 +1146,23 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
     if (records.count == 0) {
         UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        cell.textLabel.text = self.busy
-            ? @"Scanning…"
-            : (self.browserMode == SRBrowserModeDiscarded && self.prepared && !self.discardedRootExists
-               ? @"No Protected Cache Found"
-               : @"Nothing to Clean");
-        cell.detailTextLabel.text = self.busy
-            ? @"Storage Rescue is measuring removable cache."
-            : (self.prepared ? @"Refresh to scan again." : @"Enable Storage Access to begin.");
-        cell.detailTextLabel.numberOfLines = 0;
-        cell.imageView.image = [UIImage systemImageNamed:self.busy ? @"magnifyingglass" : @"checkmark.circle.fill"];
-        cell.imageView.tintColor = self.busy ? UIColor.systemBlueColor : UIColor.systemGreenColor;
+        cell.textLabel.text = self.busy ? @"Scanning…" : (self.browserMode == SRBrowserModeDiscarded && !self.discardedRootExists ? @"discardedCaches not present" : @"No cache found");
+        cell.detailTextLabel.text = self.busy ? @"Please wait" : (self.prepared ? @"Use Refresh to scan again" : @"Run Prepare Access first");
         return cell;
     }
 
     SRCacheRecord *record = records[indexPath.row];
-    BOOL selected = [self.selectedIdentifiers containsObject:record.identifier];
     UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
     cell.textLabel.text = record.displayName;
-    cell.textLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
-    cell.textLabel.adjustsFontForContentSizeCategory = YES;
     if (self.browserMode == SRBrowserModeApps) {
-        NSString *cache = record.cacheDirectoryExists ? SRFormatBytes(record.cacheBytes) : @"—";
-        NSString *temporary = record.temporaryDirectoryExists ? SRFormatBytes(record.temporaryBytes) : @"—";
-        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@\nCache %@ • Temp %@", record.bundleID, cache, temporary];
-        cell.imageView.image = [UIImage systemImageNamed:@"app.fill"];
-        cell.imageView.tintColor = UIColor.systemBlueColor;
+        NSString *cache = record.cacheDirectoryExists ? SRFormatBytes(record.cacheBytes) : @"not present";
+        NSString *tmp = record.temporaryDirectoryExists ? SRFormatBytes(record.temporaryBytes) : @"not present";
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@\nCaches %@ • tmp %@ • %lu files", record.bundleID, cache, tmp, (unsigned long)record.itemCount];
     } else {
-        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@\n%lu files waiting for Rescue", record.bundleID, (unsigned long)record.itemCount];
-        cell.imageView.image = [UIImage systemImageNamed:@"archivebox.fill"];
-        cell.imageView.tintColor = UIColor.systemOrangeColor;
+        cell.detailTextLabel.text = [NSString stringWithFormat:@"%@\n%@ • %lu files", record.bundleID, SRFormatBytes(record.cacheBytes), (unsigned long)record.itemCount];
     }
     cell.detailTextLabel.numberOfLines = 2;
-    cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
-    cell.accessoryView = [self accessoryForRecord:record selected:selected];
+    cell.accessoryType = [self.selectedIdentifiers containsObject:record.identifier] ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
     return cell;
 }
 
@@ -1472,34 +1172,33 @@ static NSString *SRDiscardedDisplayName(NSString *path, NSString **identifierOut
     if (self.busy) return;
 
     if (indexPath.section == 0) {
-        if (!self.prepared) [self prepareAccess];
-        return;
-    }
-
-    if (indexPath.section == 1) {
-        if (self.browserMode == SRBrowserModeStaging) {
-            if (indexPath.row == 1 && [self hasStagedData]) [self openRescue];
-        } else if (indexPath.row == 2) {
-            if (self.browserMode == SRBrowserModeApps) [self cleanSelectedApps];
-            else [self stageSelectedDiscarded];
-        }
+        if (indexPath.row == 0) [self prepareAccess];
+        else if (indexPath.row == 1) {
+            if (!self.prepared) [self prepareAccess];
+            else {
+                NSError *error = nil;
+                BOOL ok = SREnsureDirectory(SRTargetPath, &error);
+                self.targetExists = ok;
+                [self.tableView reloadData];
+                if (!ok) [self showSimpleAlert:@"Target Folder" message:error.localizedDescription ?: @"Could not create target folder"];
+            }
+        } else if (indexPath.row == 2) [self scanCurrentMode];
+        else [self openSolver];
         return;
     }
 
     if (self.browserMode == SRBrowserModeStaging) {
-        if ([self hasStagedData]) [self openRescue];
+        [self openSolver];
         return;
     }
 
     NSArray<SRCacheRecord *> *records = [self recordsForCurrentMode];
     if (indexPath.row >= records.count) return;
     SRCacheRecord *record = records[indexPath.row];
-    if ([self.selectedIdentifiers containsObject:record.identifier]) {
-        [self.selectedIdentifiers removeObject:record.identifier];
-    } else {
-        [self.selectedIdentifiers addObject:record.identifier];
-    }
-    [self updateInterface];
+    if ([self.selectedIdentifiers containsObject:record.identifier]) [self.selectedIdentifiers removeObject:record.identifier];
+    else [self.selectedIdentifiers addObject:record.identifier];
+    [self updateChrome];
+    [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationNone];
 }
 
 @end
