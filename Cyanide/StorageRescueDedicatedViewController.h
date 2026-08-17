@@ -1,4 +1,4 @@
-#import "StorageRescueSolverViewController.h"
+#import <UIKit/UIKit.h>
 
-@interface StorageRescueDedicatedViewController : StorageRescueSolverViewController
+@interface StorageRescueDedicatedViewController : UITableViewController <UISearchResultsUpdating>
 @end
