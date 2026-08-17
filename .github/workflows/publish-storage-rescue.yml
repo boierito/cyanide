@@ -29,13 +29,15 @@ jobs:
       - name: Read product identity
         id: identity
         run: |
-          APP="build/DerivedData/Build/Products/Debug-iphoneos/StorageRescue.app"
+          APP="build/DerivedData/Build/Products/Debug-iphoneos/Cyanide.app"
           VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist")
           BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Info.plist")
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
+          DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$APP/Info.plist")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
           echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
+          test "$DISPLAY_NAME" = "Storage Rescue"
           test "$BUNDLE_ID" = "io.github.boierito.storagerescue"
 
       - name: Publish release
