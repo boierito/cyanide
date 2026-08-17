@@ -105,6 +105,22 @@ if [ ! -d "$APP_PATH" ]; then
     exit 1
 fi
 
+# The Cyanide executable is linked against @loader_path/libxpf.dylib. Xcode's
+# synchronized Copy Files membership does not reliably place that generated
+# library in the unsigned product used by this packaging workflow, so bundle it
+# explicitly. Without it, dyld terminates the app before UIKit can launch.
+if [ "$SDK" = "iphoneos" ]; then
+    XPF_DYLIB_SRC="$PWD/Cyanide/XPF/output/ios/libxpf.dylib"
+    XPF_DYLIB_DST="$APP_PATH/libxpf.dylib"
+    if [ ! -f "$XPF_DYLIB_SRC" ]; then
+        echo "error: linked runtime dependency missing after build: $XPF_DYLIB_SRC" >&2
+        exit 1
+    fi
+    echo "==> bundling libxpf.dylib"
+    ditto "$XPF_DYLIB_SRC" "$XPF_DYLIB_DST"
+    chmod 0755 "$XPF_DYLIB_DST"
+fi
+
 normalize_storage_rescue_plist() {
     local plist="$1"
     python3 - "$plist" "$PUBLIC_DISPLAY_NAME" "$PUBLIC_BUNDLE_NAME" "$PUBLIC_BUNDLE_ID" "$PUBLIC_VERSION" "$PUBLIC_BUILD" <<'PY'
@@ -208,6 +224,18 @@ if [ "$SCHEME" != "CyanideVPhone" ]; then
     /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$FINAL_PLIST"
     /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$FINAL_PLIST"
     /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$FINAL_PLIST"
+fi
+
+if [ "$SDK" = "iphoneos" ]; then
+    FINAL_APP="$STAGE/Payload/$APP_NAME"
+    if [ ! -f "$FINAL_APP/libxpf.dylib" ]; then
+        echo "error: final payload is missing @loader_path/libxpf.dylib" >&2
+        exit 1
+    fi
+    if ! xcrun otool -L "$FINAL_APP/Cyanide" | grep -Fq '@loader_path/libxpf.dylib'; then
+        echo "error: final executable no longer declares expected libxpf dependency" >&2
+        exit 1
+    fi
 fi
 
 rm -f "$IPA_OUT"
