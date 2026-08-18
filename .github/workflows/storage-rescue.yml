@@ -9,7 +9,6 @@ on:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
       - "scripts/build.sh"
-      - "scripts/generate_storage_cleaner_icon.py"
       - "Cyanide/Assets.xcassets/AppIcon.appiconset/**"
       - "Cyanide/StorageCleanerProgressiveViewController.h"
       - "Cyanide/StorageCleanerProgressiveViewController.m"
@@ -53,21 +52,22 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          brew install ldid librsvg
+          brew install ldid
           command -v ldid
-          command -v rsvg-convert
           ldid -h >/dev/null 2>&1 || true
 
-      - name: Verify Gain Access isolation
+      - name: Verify access isolation and 2.0 startup
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
           source = Path("Cyanide/StorageCleanerPolishedSafeViewController.m").read_text()
           overlay = Path("Cyanide/StorageCleanerFullscreenStartupViewController.m").read_text()
+          intro = Path("Cyanide/StorageCleanerIntroViewController.m").read_text()
+          scene = Path("Cyanide/SceneDelegate.m").read_text()
           config = Path("StorageRescue.xcconfig").read_text()
 
-          # The proven automatic-access implementation remains in the same class.
+          # Proven automatic-access implementation stays in the same class.
           assert "- (void)updateChrome" not in source
           assert "- (void)scanCurrentMode" not in source
           assert "[self scRunCountdown:5]" in source
@@ -80,8 +80,7 @@ jobs:
           bundle_walk = source.index("/var/containers/Bundle/Application", background_work)
           assert wait < prepared_gate < busy_gate < background_work < bundle_walk
 
-          # The new subclass is presentation-only: it may replace the overlay,
-          # but it cannot wrap or replace Gain Access / countdown / scan behavior.
+          # Fullscreen subclass is presentation-only.
           assert "- (void)viewDidAppear" not in overlay
           assert "- (void)scRunCountdown" not in overlay
           assert "- (void)scMonitorAutomaticAccess" not in overlay
@@ -89,18 +88,23 @@ jobs:
           assert "self.view.window" in overlay
           assert "bringSubviewToFront" in overlay
 
+          # Onboarding is one-time and hands off to the same cleaner root.
+          assert 'storageCleaner.onboardingSeen' in intro
+          assert '[StorageCleanerIntroViewController shouldShow]' in scene
+          assert 'StorageCleanerFullscreenStartupViewController' in scene
+
           assert "PRODUCT_BUNDLE_IDENTIFIER = com.ai.StorageCleaner" in config
-          assert "MARKETING_VERSION = 1.2.3" in config
-          assert "CURRENT_PROJECT_VERSION = 14" in config
+          assert "MARKETING_VERSION = 2.0.0" in config
+          assert "CURRENT_PROJECT_VERSION = 15" in config
           assert "ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon" in config
           PY
 
-      - name: Generate Storage Cleaner icon
+      - name: Verify supplied Storage Cleaner icon
         run: |
-          python3 scripts/generate_storage_cleaner_icon.py
-          test -s Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png
-          WIDTH=$(sips -g pixelWidth Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png | awk '/pixelWidth/ {print $2}')
-          HEIGHT=$(sips -g pixelHeight Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png | awk '/pixelHeight/ {print $2}')
+          ICON="Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png"
+          test -s "$ICON"
+          WIDTH=$(sips -g pixelWidth "$ICON" | awk '/pixelWidth/ {print $2}')
+          HEIGHT=$(sips -g pixelHeight "$ICON" | awk '/pixelHeight/ {print $2}')
           test "$WIDTH" = "1024"
           test "$HEIGHT" = "1024"
 
@@ -131,6 +135,8 @@ jobs:
           EXPECTED_BUILD="$(read_xcconfig_value CURRENT_PROJECT_VERSION)"
 
           test "$EXPECTED_BUNDLE_ID" = "com.ai.StorageCleaner"
+          test "$EXPECTED_VERSION" = "2.0.0"
+          test "$EXPECTED_BUILD" = "15"
 
           rm -rf /tmp/storage-rescue-verify
           mkdir -p /tmp/storage-rescue-verify
@@ -161,12 +167,7 @@ jobs:
             assetutil --info "$APP/Assets.car" | grep -F 'AppIcon' >/dev/null
           fi
 
-          echo "Executable dependencies:"
-          xcrun otool -L "$EXECUTABLE"
           xcrun otool -L "$EXECUTABLE" | grep -F '@loader_path/libxpf.dylib'
-
-          echo "libxpf.dylib dependencies:"
-          xcrun otool -L "$XPF_DYLIB"
 
           while IFS= read -r dependency; do
             case "$dependency" in
