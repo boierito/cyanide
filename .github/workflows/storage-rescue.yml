@@ -29,6 +29,7 @@ on:
       - "Cyanide/StorageRescueSolverViewController.m"
       - "Cyanide/SceneDelegate.m"
       - "Cyanide/Info.plist"
+      - "README.md"
 
 permissions:
   contents: read
@@ -54,12 +55,28 @@ jobs:
 
       - name: Verify Gain Access isolation
         run: |
-          ! grep -q -- '- (void)updateChrome' Cyanide/StorageCleanerPolishedSafeViewController.m
-          ! grep -q -- '- (void)scanCurrentMode' Cyanide/StorageCleanerPolishedSafeViewController.m
-          ! grep -q 'dispatch_async' Cyanide/StorageCleanerPolishedSafeViewController.m
-          ! grep -q 'scanBundleCatalog' Cyanide/StorageCleanerPolishedSafeViewController.m
-          grep -q 'BOOL prepared' Cyanide/StorageCleanerPolishedSafeViewController.m
-          grep -q 'BOOL busy' Cyanide/StorageCleanerPolishedSafeViewController.m
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("Cyanide/StorageCleanerPolishedSafeViewController.m").read_text()
+          config = Path("StorageRescue.xcconfig").read_text()
+
+          assert "- (void)updateChrome" not in source
+          assert "- (void)scanCurrentMode" not in source
+          assert "[self scRunCountdown:5]" in source
+          assert "[self prepareAccess]" in source
+
+          wait = source.index("- (void)scWaitForIdleThenResolveNames")
+          prepared_gate = source.index("if (!prepared) return;", wait)
+          busy_gate = source.index("if (busy)", prepared_gate)
+          background_work = source.index("dispatch_async(dispatch_get_global_queue", busy_gate)
+          bundle_walk = source.index("/var/containers/Bundle/Application", background_work)
+          assert wait < prepared_gate < busy_gate < background_work < bundle_walk
+
+          assert "PRODUCT_BUNDLE_IDENTIFIER = com.ai.StorageCleaner" in config
+          assert "MARKETING_VERSION = 1.2.2" in config
+          assert "CURRENT_PROJECT_VERSION = 13" in config
+          PY
 
       - name: Build unsigned IPA
         run: |
@@ -86,6 +103,8 @@ jobs:
           EXPECTED_BUNDLE_ID="$(read_xcconfig_value PRODUCT_BUNDLE_IDENTIFIER)"
           EXPECTED_VERSION="$(read_xcconfig_value MARKETING_VERSION)"
           EXPECTED_BUILD="$(read_xcconfig_value CURRENT_PROJECT_VERSION)"
+
+          test "$EXPECTED_BUNDLE_ID" = "com.ai.StorageCleaner"
 
           rm -rf /tmp/storage-rescue-verify
           mkdir -p /tmp/storage-rescue-verify
