@@ -4,7 +4,7 @@
 //
 
 #import "SceneDelegate.h"
-#import "StorageCleanerProgressiveViewController.h"
+#import "StorageCleanerPolishedSafeViewController.h"
 
 @implementation SceneDelegate
 
@@ -17,7 +17,7 @@ willConnectToSession:(UISceneSession *)session
     UIWindowScene *windowScene = (UIWindowScene *)scene;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
 
-    StorageCleanerProgressiveViewController *root = [[StorageCleanerProgressiveViewController alloc] init];
+    StorageCleanerPolishedSafeViewController *root = [[StorageCleanerPolishedSafeViewController alloc] init];
     UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:root];
     navigation.navigationBar.prefersLargeTitles = YES;
 
