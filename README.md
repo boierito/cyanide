@@ -6,6 +6,21 @@ It is built on top of the **Cyanide / DarkSword** research stack, which provides
 
 Current release: **2.0.0**
 
+## Compatibility
+
+StorageCleanerDS follows the same supported target range as Cyanide because it uses the same Cyanide / DarkSword low-level access stack.
+
+| iOS / iPadOS version | Status |
+| --- | --- |
+| **17.0 – 18.7.1** | Supported |
+| **18.7.2 and later 18.x releases** | Not supported |
+| **26.0 – 26.0.1** | Supported |
+| **26.1 and later** | Not supported |
+
+**A19 and M5 devices are not supported.**
+
+The kernel vulnerabilities used by the underlying DarkSword access path, **CVE-2025-43510** and **CVE-2025-43520**, were fixed in iOS/iPadOS **18.7.2** and **26.1**. Builds released after those fixes are outside the exploit window used by Cyanide and therefore outside the supported StorageCleanerDS range.
+
 ## What does it do?
 
 StorageCleanerDS scans the device and shows removable cache data progressively, app by app, so you can see results while the scan is still running.
