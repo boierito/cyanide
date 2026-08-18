@@ -111,7 +111,7 @@ Although app cleanup is intentionally restricted to temporary cache locations, l
 
 ## Credits
 
-- [`boierito`](https://github.com/boierito) — **Lucas Boiero**; StorageCleanerDS fork, product direction, integration and testing.
+- [`boierito`](https://github.com/boierito) — StorageCleanerDS fork, product direction, integration and testing.
 - [`zeroxjf`](https://github.com/zeroxjf) — Cyanide project and integration work this fork derives from.
 - [`opa334`](https://github.com/opa334) — DarkSword, ChOma and XPF work used by the underlying stack.
 - [`wh1te4ever`](https://github.com/wh1te4ever) — `darksword-kexploit-fun` / RemoteCall work used by Cyanide.
