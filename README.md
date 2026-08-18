@@ -2,7 +2,7 @@
 
 **StorageCleanerDS** is an iOS storage-cleaning app focused on finding and removing temporary cache data from installed apps and compatible iOS system caches.
 
-It is built on top of the **Cyanide / DarkSword** research stack, which provides the low-level access needed to inspect and clean locations that a normal iOS app cannot access.
+It is built on top of the **Cyanide / DarkSword** research stack, which provides the low-level filesystem access needed to inspect and clean locations that a normal iOS app cannot access.
 
 Current release: **2.0.0**
 
@@ -17,7 +17,7 @@ Library/Caches
 tmp
 ```
 
-The app also includes a **System Cache** section for compatible leftovers managed by iOS. This section may be empty depending on the current state of the device.
+The app also includes a **System Cache** section for compatible CacheDelete leftovers managed by iOS. This section may be empty depending on the current state of the device.
 
 StorageCleanerDS is intended for cache cleanup. It is not a general-purpose file manager and is not designed to remove personal documents, photos, messages or other normal user data.
 
@@ -27,14 +27,34 @@ On the first launch, the app shows a short introduction explaining the basic wor
 
 After that:
 
-1. StorageCleanerDS automatically prepares the required low-level access.
+1. StorageCleanerDS initializes the Cyanide / DarkSword low-level filesystem access required by the cleaner.
 2. The **Apps** section starts scanning application caches.
 3. Results appear progressively instead of waiting for the entire device to finish scanning.
 4. You can search, sort and select the apps you want to clean.
 5. **Clean Selected** removes the selected temporary cache data.
-6. **System Cache** can be used to review compatible iOS cache leftovers when available.
+6. **System Cache** can be used to review compatible iOS CacheDelete leftovers when available.
 
 Whenever possible, StorageCleanerDS displays the real application name instead of only its bundle identifier.
+
+Nothing is deleted just by opening the app or initializing low-level access. Deletion only begins after you select entries and start a cleanup.
+
+## How is cache actually removed?
+
+The two cleaner areas use different deletion paths.
+
+### App cache
+
+Normal app cache is removed directly from the allowed `Library/Caches` and `tmp` trees. The cleaner traverses those directories without following symlinks and removes files with POSIX `unlinkat()`. Empty directories are removed with `unlinkat(..., AT_REMOVEDIR)`.
+
+The app's cache and `tmp` root directories themselves are kept in place; the cleaner removes their contents.
+
+### System Cache
+
+The **System Cache** view deals with compatible leftovers already managed by iOS CacheDelete. These can require the guarded cleanup path inherited from Cyanide / DarkSword rather than the normal per-app deletion path.
+
+When necessary, selected leftovers are first moved into the dedicated staging area. That move uses `rename()` and **does not free storage by itself** — it only relocates the filesystem entry.
+
+Actual space is reclaimed only when the staged data is successfully deleted. The guarded path verifies a real `unlink()` result and then confirms that the path no longer exists instead of treating a permission check or a successful move as proof of deletion.
 
 ## What can you do in the app?
 
@@ -48,13 +68,11 @@ Whenever possible, StorageCleanerDS displays the real application name instead o
 - Check compatible **System Cache** leftovers.
 - Access the built-in help and credits.
 
-Nothing is deleted simply by opening the app or preparing access. Cleanup happens only after you select items and confirm the cleaning action.
-
 ## Based on
 
 StorageCleanerDS is a cleaner-focused fork built around the existing **Cyanide** project and its **DarkSword**-based low-level access stack.
 
-The cleaner interface and progressive scanning behavior were developed specifically for StorageCleanerDS while keeping the working Gain Access backend intact. The progressive-result approach also takes inspiration from the cleaner implementation in [`YangJiiii/3105`](https://github.com/YangJiiii/3105).
+The cleaner interface and progressive scanning behavior were developed specifically for StorageCleanerDS while preserving the working Cyanide / DarkSword access implementation. The progressive-result approach also takes inspiration from the cleaner implementation in [`YangJiiii/3105`](https://github.com/YangJiiii/3105).
 
 ## Important warnings
 
@@ -65,6 +83,7 @@ StorageCleanerDS performs real filesystem deletion and uses a kernel-exploit-bas
 - Apps and iOS may recreate cache files later; this is normal.
 - The amount of removable storage can change between scans.
 - System Cache may legitimately contain nothing to remove.
+- Moving a System Cache entry into staging does not mean its storage has been freed; deletion must complete successfully.
 - Low-level access can fail, crash the app, panic or reboot the device.
 - Keep backups of important data.
 - Use StorageCleanerDS only on devices and data you control.
