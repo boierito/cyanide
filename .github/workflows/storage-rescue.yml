@@ -9,10 +9,14 @@ on:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
       - "scripts/build.sh"
+      - "scripts/generate_storage_cleaner_icon.py"
+      - "Cyanide/Assets.xcassets/AppIcon.appiconset/**"
       - "Cyanide/StorageCleanerProgressiveViewController.h"
       - "Cyanide/StorageCleanerProgressiveViewController.m"
       - "Cyanide/StorageCleanerPolishedSafeViewController.h"
       - "Cyanide/StorageCleanerPolishedSafeViewController.m"
+      - "Cyanide/StorageCleanerFullscreenStartupViewController.h"
+      - "Cyanide/StorageCleanerFullscreenStartupViewController.m"
       - "Cyanide/StorageCleanerIntroViewController.h"
       - "Cyanide/StorageCleanerIntroViewController.m"
       - "Cyanide/StorageRescueHomeViewController.h"
@@ -59,8 +63,10 @@ jobs:
           from pathlib import Path
 
           source = Path("Cyanide/StorageCleanerPolishedSafeViewController.m").read_text()
+          overlay = Path("Cyanide/StorageCleanerFullscreenStartupViewController.m").read_text()
           config = Path("StorageRescue.xcconfig").read_text()
 
+          # The proven automatic-access implementation remains in the same class.
           assert "- (void)updateChrome" not in source
           assert "- (void)scanCurrentMode" not in source
           assert "[self scRunCountdown:5]" in source
@@ -73,10 +79,29 @@ jobs:
           bundle_walk = source.index("/var/containers/Bundle/Application", background_work)
           assert wait < prepared_gate < busy_gate < background_work < bundle_walk
 
+          # The new subclass is presentation-only: it may replace the overlay,
+          # but it cannot wrap or replace Gain Access / countdown / scan behavior.
+          assert "- (void)viewDidAppear" not in overlay
+          assert "- (void)scRunCountdown" not in overlay
+          assert "- (void)scMonitorAutomaticAccess" not in overlay
+          assert "prepareAccess" not in overlay
+          assert "self.view.window" in overlay
+          assert "bringSubviewToFront" in overlay
+
           assert "PRODUCT_BUNDLE_IDENTIFIER = com.ai.StorageCleaner" in config
-          assert "MARKETING_VERSION = 1.2.2" in config
-          assert "CURRENT_PROJECT_VERSION = 13" in config
+          assert "MARKETING_VERSION = 1.2.3" in config
+          assert "CURRENT_PROJECT_VERSION = 14" in config
+          assert "ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon" in config
           PY
+
+      - name: Generate Storage Cleaner icon
+        run: |
+          python3 scripts/generate_storage_cleaner_icon.py
+          test -s Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png
+          WIDTH=$(sips -g pixelWidth Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png | awk '/pixelWidth/ {print $2}')
+          HEIGHT=$(sips -g pixelHeight Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png | awk '/pixelHeight/ {print $2}')
+          test "$WIDTH" = "1024"
+          test "$HEIGHT" = "1024"
 
       - name: Build unsigned IPA
         run: |
@@ -117,6 +142,7 @@ jobs:
           test -f "$PLIST"
           test -x "$EXECUTABLE"
           test -f "$XPF_DYLIB"
+          test -f "$APP/Assets.car"
 
           DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$PLIST")
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST")
@@ -129,6 +155,10 @@ jobs:
           test "$BUNDLE_ID" = "$EXPECTED_BUNDLE_ID"
           test "$VERSION" = "$EXPECTED_VERSION"
           test "$BUILD" = "$EXPECTED_BUILD"
+
+          if command -v assetutil >/dev/null 2>&1; then
+            assetutil --info "$APP/Assets.car" | grep -F 'AppIcon' >/dev/null
+          fi
 
           echo "Executable dependencies:"
           xcrun otool -L "$EXECUTABLE"
