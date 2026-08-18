@@ -9,6 +9,7 @@ on:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
       - "scripts/build.sh"
+      - "Cyanide/StorageCleanerAppIconSource.jpg"
       - "Cyanide/Assets.xcassets/AppIcon.appiconset/**"
       - "Cyanide/StorageCleanerProgressiveViewController.h"
       - "Cyanide/StorageCleanerProgressiveViewController.m"
@@ -99,14 +100,41 @@ jobs:
           assert "ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon" in config
           PY
 
-      - name: Verify supplied Storage Cleaner icon
+      - name: Generate supplied Storage Cleaner AppIcon
         run: |
-          ICON="Cyanide/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png"
-          test -s "$ICON"
-          WIDTH=$(sips -g pixelWidth "$ICON" | awk '/pixelWidth/ {print $2}')
-          HEIGHT=$(sips -g pixelHeight "$ICON" | awk '/pixelHeight/ {print $2}')
+          SOURCE="Cyanide/StorageCleanerAppIconSource.jpg"
+          ICON_DIR="Cyanide/Assets.xcassets/AppIcon.appiconset"
+          test -s "$SOURCE"
+
+          generate_icon() {
+            local size="$1"
+            local filename="$2"
+            sips -s format png -z "$size" "$size" "$SOURCE" --out "$ICON_DIR/$filename" >/dev/null
+          }
+
+          generate_icon 40   icon-ios-20x20@2x.png
+          generate_icon 60   icon-ios-20x20@3x.png
+          generate_icon 58   icon-ios-29x29@2x.png
+          generate_icon 87   icon-ios-29x29@3x.png
+          generate_icon 76   icon-ios-38x38@2x.png
+          generate_icon 114  icon-ios-38x38@3x.png
+          generate_icon 80   icon-ios-40x40@2x.png
+          generate_icon 120  icon-ios-40x40@3x.png
+          generate_icon 120  icon-ios-60x60@2x.png
+          generate_icon 180  icon-ios-60x60@3x.png
+          generate_icon 128  icon-ios-64x64@2x.png
+          generate_icon 192  icon-ios-64x64@3x.png
+          generate_icon 136  icon-ios-68x68@2x.png
+          generate_icon 152  icon-ios-76x76@2x.png
+          generate_icon 167  icon-ios-83.5x83.5@2x.png
+          generate_icon 1024 icon-ios-1024x1024.png
+
+          test -s "$ICON_DIR/icon-ios-1024x1024.png"
+          WIDTH=$(sips -g pixelWidth "$ICON_DIR/icon-ios-1024x1024.png" | awk '/pixelWidth/ {print $2}')
+          HEIGHT=$(sips -g pixelHeight "$ICON_DIR/icon-ios-1024x1024.png" | awk '/pixelHeight/ {print $2}')
           test "$WIDTH" = "1024"
           test "$HEIGHT" = "1024"
+          echo "Supplied icon source SHA-256: $(shasum -a 256 "$SOURCE" | awk '{print $1}')"
 
       - name: Build unsigned IPA
         run: |
