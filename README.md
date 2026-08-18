@@ -1,126 +1,90 @@
-# Storage Rescue for iOS
+# Storage Cleaner for iOS
 
-Storage Rescue is a dedicated iOS cache-recovery and cleanup utility built from the Cyanide / DarkSword research stack.
+Storage Cleaner is a dedicated iOS cache-cleaning utility built on the Cyanide / DarkSword research stack.
 
-It was created for filesystem data that can still be read or moved but may refuse normal deletion with `EPERM`. The current app combines a limited per-app cache cleaner with the guarded Storage Rescue solver.
+The user-facing cleaner has two areas:
 
-> **Destructive tool. There is no undo. Review every selected item before cleaning or staging it.**
+- **Apps** — temporary per-app data inside `Library/Caches` and `tmp`.
+- **System Cache** — compatible CacheDelete leftovers managed by iOS, when they exist.
 
-## Cache browser
+The proven Cyanide/DarkSword Gain Access backend remains separate from the cleaner UI.
 
-The main screen has three modes:
+> **Cleanup is permanent. Review selections carefully and close apps before clearing their cache.**
 
-### Apps
+## How to use
 
-Storage Rescue enumerates application data containers and calculates removable cache usage per app.
+1. Open Storage Cleaner and read the short startup guide.
+2. Tap **Enable Access** once for the current launch.
+3. Use **Apps** or **System Cache**.
+4. Select the entries you want to remove.
+5. Confirm the cleanup.
 
-The allowed per-app scope is deliberately limited to:
+## Apps
+
+App cleanup is deliberately limited to:
 
 ```text
 <app container>/Library/Caches
 <app container>/tmp
 ```
 
-Apps with no data in those locations are omitted from the list. Results are sorted by recoverable size and can be searched by app name or bundle identifier.
+Photos, documents, messages, credentials, user-created files and normal application data are outside this path.
 
-Normal app cache is removed **in place**. Storage Rescue preserves the `Library/Caches` and `tmp` root directories and removes only their contents.
+The app scanner is progressive: a small worker pool scans application containers and publishes results as each app finishes. The UI shows live processed-app counts and removable storage instead of waiting for the entire device scan to complete.
 
-If direct POSIX deletion is denied, the remaining top-level cache entries can be staged into the Storage Rescue target and passed to the guarded solver.
+After a selected app is cleaned, only that app is rescanned and its row is updated immediately. Storage Cleaner does not perform a full-device rescan after every cleanup batch.
 
-### Discarded
+### Application names
 
-Storage Rescue also checks the optional CacheDelete location:
+The progressive scanner first asks LaunchServices for the friendly app name. If the result is still only the bundle identifier, the corrected 1.2.1 frontend may inspect that app's own bundle metadata **only after Gain Access has fully completed and while no scan or cleanup is running**.
+
+There is no device-wide app-bundle catalog walk before or during Gain Access.
+
+## System Cache
+
+System Cache checks the optional iOS CacheDelete leftovers directory:
 
 ```text
 /var/mobile/Library/Caches/com.apple.cache_delete/com.apple.CacheDeleteAppContainerCaches.discardedCaches
 ```
 
-This directory does not necessarily exist on every device or at every moment. When present, its direct entries are scanned and listed by size. When absent, the UI reports that there is nothing there; Storage Rescue does **not** create this system-managed directory.
+This path is managed by iOS. It may not exist and may legitimately contain nothing. Storage Cleaner does not create fake entries just to populate the list.
 
-Selected discarded entries are moved with `rename(2)` into the staging target before solver deletion. On the same `/var` filesystem this is a metadata move rather than a second copy of the data.
+System Cache is intentionally separated from normal app cache because these entries can have different filesystem behavior.
 
-### Staging
+## Progressive scanner
 
-The guarded solver continues to operate only inside:
+The progressive app scanner is inspired by the cleaner behavior in [`YangJiiii/3105`](https://github.com/YangJiiii/3105).
 
-```text
-/var/mobile/Documents/test
-```
+The implementation:
 
-`Prepare Access` automatically creates this directory if it does not exist.
+- scans a limited number of application containers concurrently;
+- publishes results as individual apps complete;
+- shows scan counts and removable bytes while scanning;
+- uses descriptor-relative filesystem traversal (`openat`, `fstatat`, `fdopendir`);
+- updates cleaned apps individually instead of rebuilding the complete catalog.
 
-Moving data into `test` does **not** free space by itself. It is only a quarantine/staging step. The bytes are reclaimed only after the solver successfully removes the files.
+## Gain Access
 
-## Recommended strategy
+**Enable Access** uses the existing Cyanide/DarkSword backend already proven on the target device.
 
-Use direct in-place cleanup for ordinary app caches. There is no reason to move healthy cache data first when a normal `unlink(2)` succeeds.
+The corrected 1.2.1 frontend deliberately does **not** override `updateChrome` or `scanCurrentMode`, and starts no filesystem enumeration, LaunchServices catalog scan, or asynchronous resolver before/during Gain Access.
 
-Use staging for protected or abandoned CacheDelete data, or as a fallback when an app cache returns deletion errors. Moving an entire protected subtree can succeed even when deleting individual protected leaf files does not; the solver can then operate inside its proven hard boundary.
+No files are deleted merely by enabling access.
 
-## Prepare Access
+## Protected-file fallback
 
-Filesystem scanning and modification never start the exploit implicitly. Run `Prepare Access` first.
+The standalone **Protected Cleanup (Advanced)** menu entry is not exposed in the normal interface.
 
-The access flow initializes or reuses DarkSword kernel read/write and obtains the filesystem access required by the recovery flow. It does **not** use the older aggressive `patch_sandbox_ext()` path that was found to be unstable during development.
-
-After access is ready, Storage Rescue verifies the app-container root and creates `/var/mobile/Documents/test` if necessary.
-
-## Guarded solver
-
-The Solver is the recovery path for staged data that still refuses normal deletion.
-
-Before mass deletion is enabled, it must successfully remove one real staged file and verify:
-
-```text
-unlink(path) == 0
-lstat(path) -> ENOENT
-```
-
-It does not trust a theoretical `ALLOW`, `isDeletable`, or sandbox query as proof of deletion capability.
-
-The recovery path can inspect and repair deletion-blocking BSD/APFS state including:
-
-- `UF_IMMUTABLE`
-- `UF_APPEND`
-- `UF_NOUNLINK`
-- `UF_DATAVAULT`
-- `SF_IMMUTABLE`
-- `SF_APPEND`
-- `SF_RESTRICTED`
-- `SF_NOUNLINK`
-
-It can also evaluate the relevant sandbox-extension path and `com.apple.macl` metadata when needed.
-
-### KRW guard
-
-If userspace metadata operations are rejected and a kernel metadata write is required, Storage Rescue cross-checks the pinned vnode/fsnode against userspace metadata before writing anything:
-
-- UID
-- GID
-- mode
-- BSD flags
-- inode identity during verification
-
-If those values do not match the expected APFS layout, the operation aborts with no kernel write and no delete attempt.
+The underlying guarded recovery path remains in the project as a contextual fallback for selected data that genuinely cannot be removed normally.
 
 ## Safety boundaries
 
-Storage Rescue intentionally separates the two cleanup modes:
-
-- **App cleaner:** only validated application containers, and only `Library/Caches` + `tmp` contents.
-- **Discarded CacheDelete:** only direct children of the known `discardedCaches` path can be staged.
-- **Solver:** only `/var/mobile/Documents/test` and descendants.
-- symlinks are never followed while scanning or traversing cache trees.
-- mass solver deletion remains locked until a real staged-file deletion is proven.
-- no automatic `patch_sandbox_ext()` mutation.
-
-The app is not a general-purpose root file manager.
-
-## Relationship to 3105
-
-The app-cache browser is inspired by the limited-cleaner design in [`YangJiiii/3105`](https://github.com/YangJiiii/3105), whose cleaner deliberately limits per-app cleanup to `Library/Caches` and `tmp` and presents cache usage by application.
-
-Storage Rescue uses its own Objective-C implementation and adds the DarkSword-based protected-file staging/solver workflow for cache trees that normal deletion cannot remove.
+- App cleanup only targets `Library/Caches` and `tmp` inside validated app containers.
+- System Cache only uses direct children of the known CacheDelete leftovers path.
+- Symlinks are not followed while scanning or cleaning cache trees.
+- The existing low-level recovery backend remains isolated behind its staging boundary.
+- The cleaner is not a general-purpose root file manager.
 
 ## Build
 
@@ -128,22 +92,20 @@ Storage Rescue uses its own Objective-C implementation and adds the DarkSword-ba
 ./scripts/build.sh
 ```
 
-The unsigned IPA is written under `build/`, with `build/Cyanide.ipa` pointing at the latest build. The `Storage Rescue IPA` GitHub Actions workflow publishes the artifact as `Storage-Rescue.ipa`.
+The unsigned IPA is written under `build/`. GitHub Actions also produces a `Storage-Rescue` artifact containing the current Storage Cleaner IPA.
 
 ## Installation
 
-The IPA is unsigned and must be signed/sideloaded with a compatible method for the target device.
+The IPA is unsigned and must be signed/sideloaded using a compatible method for the target device.
 
 ## Credits
-
-Storage Rescue is built on work from the Cyanide and DarkSword ecosystem.
 
 - [`zeroxjf`](https://github.com/zeroxjf) — Cyanide project and integration work this fork derives from.
 - [`opa334`](https://github.com/opa334) — original DarkSword kernel exploit work, ChOma and XPF components.
 - [`wh1te4ever`](https://github.com/wh1te4ever) — `darksword-kexploit-fun` / RemoteCall work used by Cyanide.
-- [`rooootdev`](https://github.com/rooootdev) — exploit behavior referenced by the Cyanide project for reliability work.
-- [`YangJiiii/3105`](https://github.com/YangJiiii/3105) — reference for the deliberately limited per-app cache-cleaner model.
-- Cyanide's upstream contributors and the researchers credited in the original project history.
+- [`rooootdev`](https://github.com/rooootdev) — exploit behavior referenced by Cyanide for reliability work.
+- [`YangJiiii/3105`](https://github.com/YangJiiii/3105) — reference for the limited per-app cleaner and progressive-result model.
+- Cyanide upstream contributors and the researchers credited in the original project history.
 
 ## License
 
@@ -151,6 +113,6 @@ This repository remains licensed under **AGPL-3.0**. See `LICENSE`.
 
 ## Disclaimer
 
-Storage Rescue modifies filesystem data and, in solver mode, may modify filesystem metadata. Kernel exploitation and incorrect low-level filesystem changes can crash, panic, or reboot a device and may cause data loss.
+Storage Cleaner permanently removes filesystem data and uses a kernel-exploit-based access backend. Incorrect low-level filesystem or kernel behavior can crash, panic or reboot a device and may cause data loss.
 
-Use it only on devices and data you control. Close apps before clearing their cache, review selections carefully, and keep backups of anything important.
+Use it only on devices and data you control, keep backups of important data, close apps before clearing their cache, and review selections before confirming cleanup.
