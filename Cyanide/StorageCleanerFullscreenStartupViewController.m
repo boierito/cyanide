@@ -2,9 +2,8 @@
 
 @implementation StorageCleanerFullscreenStartupViewController
 
-// Keep the known-good 1.2.2 automatic Gain Access flow untouched. This subclass
-// only changes where the startup overlay is hosted so underlying controls cannot
-// bleed through while the five-second countdown / access phase is visible.
+// Keep the known-good automatic Gain Access flow untouched. This subclass only
+// changes presentation: fullscreen startup coverage and small UI text polish.
 - (void)scShowStartupOverlay
 {
     UIView *existing = [self valueForKey:@"scStartupOverlay"];
@@ -39,7 +38,7 @@
     descriptionLabel.textColor = UIColor.secondaryLabelColor;
     descriptionLabel.numberOfLines = 0;
     descriptionLabel.textAlignment = NSTextAlignmentCenter;
-    descriptionLabel.text = @"Scans temporary app cache and compatible iOS cache. Nothing is deleted automatically.";
+    descriptionLabel.text = @"Preparing safe access to temporary app and iOS cache.";
 
     UIActivityIndicatorView *spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleLarge];
     [spinner startAnimating];
@@ -61,7 +60,7 @@
     warning.textColor = UIColor.tertiaryLabelColor;
     warning.numberOfLines = 0;
     warning.textAlignment = NSTextAlignmentCenter;
-    warning.text = @"Close apps before cleaning them. Cleanup is permanent, but apps and iOS may recreate cache later.";
+    warning.text = @"Nothing is deleted during this step.";
 
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
         icon,
@@ -104,6 +103,37 @@
     } completion:^(__unused BOOL finished) {
         [overlay removeFromSuperview];
     }];
+}
+
+#pragma mark - Friendly list presentation
+
+- (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
+{
+    UISegmentedControl *areaControl = [self valueForKey:@"cleanerAreaControl"];
+    if (areaControl.selectedSegmentIndex == 0) return nil;
+    return @"iOS-managed cache leftovers. An empty list is normal.";
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    UITableViewCell *cell = [super tableView:tableView cellForRowAtIndexPath:indexPath];
+    UISegmentedControl *areaControl = [self valueForKey:@"cleanerAreaControl"];
+
+    if (areaControl.selectedSegmentIndex == 0) {
+        NSString *detail = cell.detailTextLabel.text ?: @"";
+        NSRange newline = [detail rangeOfString:@"\n"];
+        if (newline.location != NSNotFound && newline.location + 1 < detail.length) {
+            // The inherited row starts with the bundle identifier. Keep it
+            // searchable internally, but show only useful cleanup information.
+            cell.detailTextLabel.text = [detail substringFromIndex:newline.location + 1];
+            cell.detailTextLabel.numberOfLines = 1;
+        } else if ([detail containsString:@"Storage Rescue is checking"]) {
+            cell.detailTextLabel.text = @"Checking app cache…";
+        } else if ([detail containsString:@"main backend is preparing access"]) {
+            cell.detailTextLabel.text = @"Preparing storage access…";
+        }
+    }
+    return cell;
 }
 
 @end
