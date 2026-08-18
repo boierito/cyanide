@@ -1,116 +1,94 @@
 # Storage Cleaner for iOS
 
-Storage Cleaner is a dedicated iOS cache-cleaning utility built on the Cyanide / DarkSword research stack.
+Storage Cleaner is an iOS cache-cleaning utility built on the Cyanide / DarkSword research stack. The app focuses on a simple job: show removable temporary data progressively, let the user choose what to clean, and keep the low-level access backend isolated from the UI.
 
-The user-facing cleaner has two areas:
+Current experimental version: **2.0.0 (15)**  
+Bundle ID: `com.ai.StorageCleaner`
 
-- **Apps** — temporary per-app data inside `Library/Caches` and `tmp`.
-- **System Cache** — compatible CacheDelete leftovers managed by iOS, when they exist.
+> **Cleanup is permanent. Close selected apps and review the list before confirming.**
 
-The proven Cyanide/DarkSword Gain Access backend remains separate from the cleaner UI.
+## What it cleans
 
-> **Cleanup is permanent. Review selections carefully and close apps before clearing their cache.**
+### Apps
 
-## How to use
-
-1. Open Storage Cleaner.
-2. A short loading screen waits five seconds and starts **Gain Access automatically**.
-3. When access succeeds, the app immediately starts the progressive Apps scan.
-4. Use **Apps** or **System Cache**, select entries and confirm cleanup.
-
-Nothing is deleted automatically.
-
-## Safe startup
-
-The five-second startup screen is deliberately simple. Before Gain Access finishes it performs only UIKit work, a main-thread countdown and reads of the existing access state.
-
-It does **not** enumerate the filesystem, build an application catalog, query LaunchServices in the background or replace the Cyanide/DarkSword access implementation.
-
-The call after the countdown is the inherited `prepareAccess` path used by the known-good 1.2.1 (12) build. On success that backend starts the existing progressive scan.
-
-## Apps
-
-App cleanup is deliberately limited to:
+Storage Cleaner only targets temporary per-app data inside:
 
 ```text
 <app container>/Library/Caches
 <app container>/tmp
 ```
 
-Photos, documents, messages, credentials, user-created files and normal application data are outside this path.
+Photos, documents, messages, credentials and normal user-created app data are outside this path.
 
-The app scanner is progressive: a small worker pool scans application containers and publishes results as each app finishes. The UI shows live processed-app counts and removable storage instead of waiting for the entire device scan to complete.
+### System Cache
 
-After a selected app is cleaned, only that app is rescanned and its row is updated immediately. Storage Cleaner does not perform a full-device rescan after every cleanup batch.
-
-### Application names
-
-The progressive scanner first asks LaunchServices for a friendly name. Some devices return only the bundle identifier, so Storage Cleaner performs a second, stronger lookup **only after Gain Access has completed and the initial scan is idle**.
-
-That post-access lookup:
-
-- catalogs installed `.app` bundles under the normal third-party and system application roots;
-- reads `CFBundleDisplayName`, `CFBundleName` and `CFBundleExecutable` from bundle metadata;
-- falls back to LaunchServices for bundle identifiers that are still unresolved;
-- updates the record itself, so displayed names, search and name sorting can use the friendly name.
-
-No device-wide app-bundle catalog walk runs before or during Gain Access.
-
-## System Cache
-
-System Cache checks the optional iOS CacheDelete leftovers directory:
+The System Cache area checks compatible iOS CacheDelete leftovers under:
 
 ```text
 /var/mobile/Library/Caches/com.apple.cache_delete/com.apple.CacheDeleteAppContainerCaches.discardedCaches
 ```
 
-This path is managed by iOS. It may not exist and may legitimately contain nothing. Storage Cleaner does not create fake entries just to populate the list.
+That directory is managed by iOS. It may not exist or may legitimately be empty.
 
-System Cache is intentionally separated from normal app cache because these entries can have different filesystem behavior.
+## Startup flow
 
-## Progressive scanner
+On the first launch after installation, Storage Cleaner shows a short onboarding screen explaining what the app does, how cleanup works and the main precautions. That guide is stored with a stable `NSUserDefaults` flag and is not shown again on later launches.
 
-The progressive app scanner is inspired by the cleaner behavior in [`YangJiiii/3105`](https://github.com/YangJiiii/3105).
+After onboarding — and on every normal launch afterwards — a fullscreen loading view waits five seconds and starts the existing Cyanide/DarkSword Gain Access path automatically.
 
-The implementation:
+The startup layer does not replace the access implementation. Before Gain Access finishes, it performs only UI/countdown work. Additional app-name catalog work waits until access is complete and the cleaner is idle.
 
-- scans a limited number of application containers concurrently;
-- publishes results as individual apps complete;
-- shows scan counts and removable bytes while scanning;
-- uses descriptor-relative filesystem traversal (`openat`, `fstatat`, `fdopendir`);
-- updates cleaned apps individually instead of rebuilding the complete catalog.
+## Progressive scanning
+
+The Apps scanner is progressive and inspired by the cleaner behavior in [`YangJiiii/3105`](https://github.com/YangJiiii/3105):
+
+- a small worker pool scans multiple app containers concurrently;
+- results appear as each app finishes instead of after the entire device scan;
+- the UI shows processed-app counts and removable bytes while scanning;
+- descriptor-relative traversal uses `openat`, `fstatat` and `fdopendir`;
+- after cleanup, only affected apps are rescanned instead of rebuilding the whole catalog.
+
+## App names
+
+The scanner first uses the name already available through the existing app metadata path. If a friendly name is still missing, Storage Cleaner performs a stronger lookup only after Gain Access and the initial scan are idle.
+
+That post-access lookup can read `CFBundleDisplayName`, `CFBundleName` and `CFBundleExecutable` from installed app bundles and fall back to LaunchServices. The bundle ID remains searchable internally but is no longer shown as the primary row text in the cleaner UI.
+
+## Interface
+
+The normal UI is intentionally small:
+
+- **Apps / System Cache** segmented control;
+- live scan status and removable-size summary;
+- search;
+- sorting by size or name;
+- per-item selection;
+- selected-size summary and cleanup action;
+- Help & Credits in the `•••` menu.
+
+The old standalone **Protected Cleanup (Advanced)** screen is not exposed as a normal user-facing mode. The underlying guarded fallback remains available internally where the existing backend needs it.
 
 ## Gain Access
 
-Gain Access uses the existing Cyanide/DarkSword backend proven on the target device.
+Gain Access remains the existing Cyanide/DarkSword backend. The cleaner frontend is designed around that implementation rather than replacing it.
 
-The frontend deliberately does **not** override `updateChrome` or `scanCurrentMode`. The five-second automation only calls inherited `prepareAccess`; additional name-resolution work is gated until `prepared == YES` and `busy == NO`.
+The known-good access path remains inherited through `prepareAccess`; the progressive scanner and post-access name resolver are kept separate from the exploit-sensitive startup phase.
 
-No files are deleted merely by enabling access.
+No files are deleted simply by enabling access.
 
 ## Bundle identity
 
-The experimental 1.2.2 build uses:
+The installed identity is defined in `StorageRescue.xcconfig`:
 
 ```text
 com.ai.StorageCleaner
 ```
 
-The installed bundle identity comes from `StorageRescue.xcconfig` and is normalized into the final IPA `Info.plist` by the build script. The internal Xcode product and executable intentionally remain `Cyanide.app` / `Cyanide`, because inherited linker and runtime paths depend on that internal name.
+The build script normalizes that identity into the final IPA `Info.plist`. The internal Xcode product and executable intentionally remain `Cyanide.app` / `Cyanide` because inherited linker/runtime paths depend on that internal name.
 
-## Protected-file fallback
+## App icon
 
-The standalone **Protected Cleanup (Advanced)** menu entry is not exposed in the normal interface.
-
-The underlying guarded recovery path remains in the project as a contextual fallback for selected data that genuinely cannot be removed normally.
-
-## Safety boundaries
-
-- App cleanup only targets `Library/Caches` and `tmp` inside validated app containers.
-- System Cache only uses direct children of the known CacheDelete leftovers path.
-- Symlinks are not followed while scanning or cleaning cache trees.
-- The existing low-level recovery backend remains isolated behind its staging boundary.
-- The cleaner is not a general-purpose root file manager.
+The iOS AppIcon uses the supplied Storage Cleaner artwork: a hard drive with a broom and a dark sword, referencing the cleaner purpose and DarkSword backend. The source artwork is cropped to full bleed before being exported to the iOS icon sizes so iOS applies the final rounded mask itself.
 
 ## Build
 
@@ -118,14 +96,19 @@ The underlying guarded recovery path remains in the project as a contextual fall
 ./scripts/build.sh
 ```
 
-The unsigned IPA is written under `build/`. GitHub Actions also produces a `Storage-Rescue` artifact containing the current Storage Cleaner IPA.
+The IPA is unsigned and written under `build/`. GitHub Actions also produces a `Storage-Rescue` artifact for the current branch build.
 
-## Installation
+## Safety boundaries
 
-The IPA is unsigned and must be signed/sideloaded using a compatible method for the target device.
+- App cleanup is limited to `Library/Caches` and `tmp` inside validated app containers.
+- System Cache only uses the known CacheDelete leftovers path.
+- Symlinks are not followed while scanning or cleaning cache trees.
+- The low-level recovery backend remains isolated behind its existing staging boundary.
+- Storage Cleaner is not a general-purpose root file manager.
 
 ## Credits
 
+- [`boierito`](https://github.com/boierito) — Lucas Boiero; Storage Cleaner fork, product direction and integration.
 - [`zeroxjf`](https://github.com/zeroxjf) — Cyanide project and integration work this fork derives from.
 - [`opa334`](https://github.com/opa334) — original DarkSword kernel exploit work, ChOma and XPF components.
 - [`wh1te4ever`](https://github.com/wh1te4ever) — `darksword-kexploit-fun` / RemoteCall work used by Cyanide.
