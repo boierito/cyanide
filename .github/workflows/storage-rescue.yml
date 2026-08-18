@@ -57,7 +57,8 @@ jobs:
           ! grep -q -- '- (void)scanCurrentMode' Cyanide/StorageCleanerPolishedSafeViewController.m
           ! grep -q 'dispatch_async' Cyanide/StorageCleanerPolishedSafeViewController.m
           ! grep -q 'scanBundleCatalog' Cyanide/StorageCleanerPolishedSafeViewController.m
-          grep -q 'prepared.*busy' Cyanide/StorageCleanerPolishedSafeViewController.m
+          grep -q 'BOOL prepared' Cyanide/StorageCleanerPolishedSafeViewController.m
+          grep -q 'BOOL busy' Cyanide/StorageCleanerPolishedSafeViewController.m
 
       - name: Build unsigned IPA
         run: |
