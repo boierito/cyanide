@@ -204,3 +204,27 @@ jobs:
               --title "StorageCleanerDS ${VERSION}" \
               --notes-file /tmp/release-notes.md
           fi
+
+      - name: Update repository description
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DESCRIPTION="StorageCleanerDS — progressive iOS cache cleaner built on Cyanide/DarkSword with isolated Gain Access and per-app scanning."
+          if gh api --method PATCH "repos/${GITHUB_REPOSITORY}" -f description="$DESCRIPTION" >/tmp/storagecleanerds-repo-edit.json 2>/tmp/storagecleanerds-repo-edit.err; then
+            echo "Repository description updated."
+          else
+            echo "::warning::GitHub Actions token cannot update repository metadata; description must be changed with an admin token."
+            cat /tmp/storagecleanerds-repo-edit.err || true
+          fi
+
+      - name: Delete non-main branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name' | while IFS= read -r branch; do
+            if [ -z "$branch" ] || [ "$branch" = "main" ]; then
+              continue
+            fi
+            echo "Deleting branch: $branch"
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+          done
