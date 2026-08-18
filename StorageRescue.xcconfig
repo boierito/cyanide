@@ -1,13 +1,13 @@
-// Storage Cleaner 1.2.2 experimental identity.
+// Storage Cleaner 1.2.3 experimental icon / fullscreen loading polish.
 // The internal Xcode product/executable intentionally remains Cyanide because
 // inherited linker/runtime paths depend on that name. The installed app identity
 // is normalized from this file into the final IPA payload.
 
 PRODUCT_BUNDLE_IDENTIFIER = com.ai.StorageCleaner
-MARKETING_VERSION = 1.2.2
-CURRENT_PROJECT_VERSION = 13
+MARKETING_VERSION = 1.2.3
+CURRENT_PROJECT_VERSION = 14
 INFOPLIST_KEY_CFBundleDisplayName = Storage Cleaner
 INFOPLIST_KEY_CFBundleName = StorageCleaner
 
-// Do not ship the inherited Cyanide artwork as this fork's product icon.
-ASSETCATALOG_COMPILER_APPICON_NAME =
+// Ship the dedicated Storage Cleaner icon supplied for this fork.
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
