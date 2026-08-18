@@ -13,11 +13,20 @@ The proven Cyanide/DarkSword Gain Access backend remains separate from the clean
 
 ## How to use
 
-1. Open Storage Cleaner and read the short startup guide.
-2. Tap **Enable Access** once for the current launch.
-3. Use **Apps** or **System Cache**.
-4. Select the entries you want to remove.
-5. Confirm the cleanup.
+1. Open Storage Cleaner.
+2. A short loading screen waits five seconds and starts **Gain Access automatically**.
+3. When access succeeds, the app immediately starts the progressive Apps scan.
+4. Use **Apps** or **System Cache**, select entries and confirm cleanup.
+
+Nothing is deleted automatically.
+
+## Safe startup
+
+The five-second startup screen is deliberately simple. Before Gain Access finishes it performs only UIKit work, a main-thread countdown and reads of the existing access state.
+
+It does **not** enumerate the filesystem, build an application catalog, query LaunchServices in the background or replace the Cyanide/DarkSword access implementation.
+
+The call after the countdown is the inherited `prepareAccess` path used by the known-good 1.2.1 (12) build. On success that backend starts the existing progressive scan.
 
 ## Apps
 
@@ -36,9 +45,16 @@ After a selected app is cleaned, only that app is rescanned and its row is updat
 
 ### Application names
 
-The progressive scanner first asks LaunchServices for the friendly app name. If the result is still only the bundle identifier, the corrected 1.2.1 frontend may inspect that app's own bundle metadata **only after Gain Access has fully completed and while no scan or cleanup is running**.
+The progressive scanner first asks LaunchServices for a friendly name. Some devices return only the bundle identifier, so Storage Cleaner performs a second, stronger lookup **only after Gain Access has completed and the initial scan is idle**.
 
-There is no device-wide app-bundle catalog walk before or during Gain Access.
+That post-access lookup:
+
+- catalogs installed `.app` bundles under the normal third-party and system application roots;
+- reads `CFBundleDisplayName`, `CFBundleName` and `CFBundleExecutable` from bundle metadata;
+- falls back to LaunchServices for bundle identifiers that are still unresolved;
+- updates the record itself, so displayed names, search and name sorting can use the friendly name.
+
+No device-wide app-bundle catalog walk runs before or during Gain Access.
 
 ## System Cache
 
@@ -66,11 +82,21 @@ The implementation:
 
 ## Gain Access
 
-**Enable Access** uses the existing Cyanide/DarkSword backend already proven on the target device.
+Gain Access uses the existing Cyanide/DarkSword backend proven on the target device.
 
-The corrected 1.2.1 frontend deliberately does **not** override `updateChrome` or `scanCurrentMode`, and starts no filesystem enumeration, LaunchServices catalog scan, or asynchronous resolver before/during Gain Access.
+The frontend deliberately does **not** override `updateChrome` or `scanCurrentMode`. The five-second automation only calls inherited `prepareAccess`; additional name-resolution work is gated until `prepared == YES` and `busy == NO`.
 
 No files are deleted merely by enabling access.
+
+## Bundle identity
+
+The experimental 1.2.2 build uses:
+
+```text
+com.ai.StorageCleaner
+```
+
+The installed bundle identity comes from `StorageRescue.xcconfig` and is normalized into the final IPA `Info.plist` by the build script. The internal Xcode product and executable intentionally remain `Cyanide.app` / `Cyanide`, because inherited linker and runtime paths depend on that internal name.
 
 ## Protected-file fallback
 
