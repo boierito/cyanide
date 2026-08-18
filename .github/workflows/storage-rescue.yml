@@ -2,6 +2,7 @@ name: Storage Rescue IPA
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     branches: [main, "agent/storage-cleaner-ui", "agent/progressive-cleaner-feedback", "agent/progressive-cleaner-1.2.1-fix"]
     paths:
