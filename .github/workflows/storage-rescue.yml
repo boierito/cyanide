@@ -3,13 +3,17 @@ name: Storage Rescue IPA
 on:
   workflow_dispatch:
   push:
-    branches: [main, "agent/storage-cleaner-ui", "agent/progressive-cleaner-feedback"]
+    branches: [main, "agent/storage-cleaner-ui", "agent/progressive-cleaner-feedback", "agent/progressive-cleaner-1.2.1-fix"]
     paths:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
       - "scripts/build.sh"
       - "Cyanide/StorageCleanerProgressiveViewController.h"
       - "Cyanide/StorageCleanerProgressiveViewController.m"
+      - "Cyanide/StorageCleanerPolishedSafeViewController.h"
+      - "Cyanide/StorageCleanerPolishedSafeViewController.m"
+      - "Cyanide/StorageCleanerIntroViewController.h"
+      - "Cyanide/StorageCleanerIntroViewController.m"
       - "Cyanide/StorageRescueHomeViewController.h"
       - "Cyanide/StorageRescueHomeViewController.m"
       - "Cyanide/StorageRescueCleanupViewController.h"
@@ -46,6 +50,14 @@ jobs:
           brew install ldid
           command -v ldid
           ldid -h >/dev/null 2>&1 || true
+
+      - name: Verify Gain Access isolation
+        run: |
+          ! grep -q -- '- (void)updateChrome' Cyanide/StorageCleanerPolishedSafeViewController.m
+          ! grep -q -- '- (void)scanCurrentMode' Cyanide/StorageCleanerPolishedSafeViewController.m
+          ! grep -q 'dispatch_async' Cyanide/StorageCleanerPolishedSafeViewController.m
+          ! grep -q 'scanBundleCatalog' Cyanide/StorageCleanerPolishedSafeViewController.m
+          grep -q 'prepared.*busy' Cyanide/StorageCleanerPolishedSafeViewController.m
 
       - name: Build unsigned IPA
         run: |
