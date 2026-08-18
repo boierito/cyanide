@@ -9,7 +9,7 @@ on:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
       - "scripts/build.sh"
-      - "Cyanide/StorageCleanerAppIconSource.b64"
+      - "Cyanide/StorageCleanerIconSource.part*"
       - "Cyanide/Assets.xcassets/AppIcon.appiconset/**"
       - "Cyanide/StorageCleanerProgressiveViewController.h"
       - "Cyanide/StorageCleanerProgressiveViewController.m"
@@ -99,16 +99,18 @@ jobs:
 
       - name: Generate supplied Storage Cleaner AppIcon
         run: |
-          SOURCE_B64="Cyanide/StorageCleanerAppIconSource.b64"
           SOURCE="/tmp/StorageCleanerAppIconSource.jpg"
           ICON_DIR="Cyanide/Assets.xcassets/AppIcon.appiconset"
-          test -s "$SOURCE_B64"
 
           python3 - <<'PY'
           import base64, hashlib
           from pathlib import Path
 
-          encoded = Path("Cyanide/StorageCleanerAppIconSource.b64").read_text().strip()
+          parts = [Path(f"Cyanide/StorageCleanerIconSource.part{i:02d}") for i in range(1, 6)]
+          for part in parts:
+              if not part.is_file() or not part.read_text():
+                  raise SystemExit(f"missing icon source part: {part}")
+          encoded = "".join(part.read_text().strip() for part in parts)
           raw = base64.b64decode(encoded, validate=True)
           digest = hashlib.sha256(raw).hexdigest()
           expected = "8e2cd2c26dd9889798cb536aa7bf188fdd1e253f8cc26b1a3a466b60b89eb353"
