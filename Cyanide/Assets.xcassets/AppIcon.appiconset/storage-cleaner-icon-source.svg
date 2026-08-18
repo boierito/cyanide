@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="44%" r="72%">
+      <stop offset="0" stop-color="#111a2b"/>
+      <stop offset="1" stop-color="#060b13"/>
+    </radialGradient>
+    <linearGradient id="lightStroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e0e9f8"/>
+      <stop offset="1" stop-color="#91a4c2"/>
+    </linearGradient>
+    <linearGradient id="darkStroke" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#52647f"/>
+      <stop offset="1" stop-color="#9baac0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="10" y="10" width="1004" height="1004" rx="190" fill="url(#bg)" stroke="#1c2a40" stroke-width="3"/>
+
+  <!-- Hard drive -->
+  <g fill="none" stroke="url(#lightStroke)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="298" y="174" width="428" height="590" rx="35"/>
+    <circle cx="512" cy="395" r="164"/>
+    <circle cx="512" cy="395" r="67"/>
+    <circle cx="512" cy="395" r="18"/>
+    <circle cx="337" cy="216" r="14"/>
+    <circle cx="687" cy="216" r="14"/>
+    <path d="M348 620 L348 731"/>
+    <path d="M676 620 L676 731"/>
+    <path d="M421 724 L603 724"/>
+    <path d="M350 578 Q379 547 413 559 L449 599"/>
+    <circle cx="379" cy="590" r="14"/>
+  </g>
+
+  <!-- Broom, upper-left to lower-right -->
+  <g fill="none" stroke="url(#lightStroke)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M145 145 L577 577"/>
+    <path d="M145 145 Q127 126 143 108 Q160 89 181 108 L611 538"/>
+    <path d="M598 556 Q628 575 654 606"/>
+    <path d="M620 579 Q647 596 670 619"/>
+    <path d="M650 607 Q717 657 824 719"/>
+    <path d="M666 626 Q741 680 846 742"/>
+    <path d="M679 646 Q753 704 858 769"/>
+    <path d="M690 669 Q759 731 852 798"/>
+    <path d="M698 692 Q758 758 834 823"/>
+    <path d="M704 715 Q754 784 809 842"/>
+    <path d="M824 719 Q847 752 858 769 Q851 803 809 842"/>
+    <path d="M641 592 Q660 588 681 612"/>
+  </g>
+
+  <!-- Dark sword, lower-left to upper-right -->
+  <g fill="none" stroke="url(#darkStroke)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M198 861 L647 412"/>
+    <path d="M198 861 L244 841 L675 410"/>
+    <path d="M198 861 L218 815 L647 386"/>
+    <path d="M635 401 Q674 362 706 329"/>
+    <path d="M631 420 Q669 440 693 475"/>
+    <path d="M646 395 Q625 359 613 337"/>
+    <path d="M693 475 Q714 457 727 433"/>
+    <path d="M613 337 Q634 321 658 312"/>
+    <path d="M684 348 L765 267"/>
+    <path d="M713 377 L794 296"/>
+    <path d="M728 313 L746 331"/>
+    <path d="M749 291 L768 310"/>
+    <path d="M771 270 L790 289"/>
+    <path d="M765 267 L820 169 L851 141 L828 239 L794 296 Z"/>
+    <path d="M820 169 L828 239 L851 141"/>
+  </g>
+</svg>
