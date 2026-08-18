@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-import base64
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "Cyanide" / "Assets.xcassets" / "AppIcon.appiconset"
-SOURCE_B64 = ICON_DIR / "storage-cleaner-icon-source.b64"
-SOURCE_JPG = ICON_DIR / ".storage-cleaner-icon-source.jpg"
+SOURCE_SVG = ICON_DIR / "storage-cleaner-icon-source.svg"
 
 IOS_ICONS = {
     "icon-ios-20x20@2x.png": 40,
@@ -29,27 +27,26 @@ IOS_ICONS = {
 
 
 def main() -> None:
+    if not SOURCE_SVG.exists():
+        raise RuntimeError(f"missing icon source: {SOURCE_SVG}")
+
     ICON_DIR.mkdir(parents=True, exist_ok=True)
-    SOURCE_JPG.write_bytes(base64.b64decode(SOURCE_B64.read_text().strip()))
-    try:
-        for filename, size in IOS_ICONS.items():
-            output = ICON_DIR / filename
-            subprocess.run(
-                [
-                    "sips",
-                    "-s", "format", "png",
-                    "-z", str(size), str(size),
-                    str(SOURCE_JPG),
-                    "--out", str(output),
-                ],
-                check=True,
-                stdout=subprocess.DEVNULL,
-            )
-            if not output.exists() or output.stat().st_size == 0:
-                raise RuntimeError(f"failed to generate {output}")
-        print(f"Generated {len(IOS_ICONS)} Storage Cleaner iOS app-icon assets.")
-    finally:
-        SOURCE_JPG.unlink(missing_ok=True)
+    for filename, size in IOS_ICONS.items():
+        output = ICON_DIR / filename
+        subprocess.run(
+            [
+                "rsvg-convert",
+                "--width", str(size),
+                "--height", str(size),
+                "--output", str(output),
+                str(SOURCE_SVG),
+            ],
+            check=True,
+        )
+        if not output.exists() or output.stat().st_size == 0:
+            raise RuntimeError(f"failed to generate {output}")
+
+    print(f"Generated {len(IOS_ICONS)} Storage Cleaner iOS app-icon assets from SVG.")
 
 
 if __name__ == "__main__":
