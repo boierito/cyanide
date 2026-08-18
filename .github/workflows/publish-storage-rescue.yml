@@ -1,5 +1,5 @@
-# Release trigger: Storage Cleaner 1.1.5 functional baseline
-name: Publish Storage Cleaner
+# StorageCleanerDS 2.0.0 release publisher
+name: Publish StorageCleanerDS
 
 on:
   workflow_dispatch:
@@ -28,66 +28,179 @@ jobs:
         run: |
           brew install ldid
           command -v ldid
+          ldid -h >/dev/null 2>&1 || true
+
+      - name: Generate supplied StorageCleanerDS AppIcon
+        run: |
+          SOURCE="/tmp/StorageCleanerAppIconSource.jpg"
+          ICON_DIR="Cyanide/Assets.xcassets/AppIcon.appiconset"
+
+          python3 - <<'PY'
+          import base64, hashlib
+          from pathlib import Path
+
+          parts = [Path(f"Cyanide/StorageCleanerIconSource.part{i:02d}") for i in range(1, 6)]
+          for part in parts:
+              if not part.is_file() or not part.read_text():
+                  raise SystemExit(f"missing icon source part: {part}")
+
+          encoded = "".join(part.read_text().strip() for part in parts)
+          raw = base64.b64decode(encoded, validate=True)
+          digest = hashlib.sha256(raw).hexdigest()
+          expected = "8e2cd2c26dd9889798cb536aa7bf188fdd1e253f8cc26b1a3a466b60b89eb353"
+          if digest != expected:
+              raise SystemExit(f"icon source digest mismatch: {digest}")
+
+          Path("/tmp/StorageCleanerAppIconSource.jpg").write_bytes(raw)
+          print(f"StorageCleanerDS icon source SHA-256: {digest}")
+          PY
+
+          generate_icon() {
+            local size="$1"
+            local filename="$2"
+            sips -s format png -z "$size" "$size" "$SOURCE" --out "$ICON_DIR/$filename" >/dev/null
+          }
+
+          generate_icon 40   icon-ios-20x20@2x.png
+          generate_icon 60   icon-ios-20x20@3x.png
+          generate_icon 58   icon-ios-29x29@2x.png
+          generate_icon 87   icon-ios-29x29@3x.png
+          generate_icon 76   icon-ios-38x38@2x.png
+          generate_icon 114  icon-ios-38x38@3x.png
+          generate_icon 80   icon-ios-40x40@2x.png
+          generate_icon 120  icon-ios-40x40@3x.png
+          generate_icon 120  icon-ios-60x60@2x.png
+          generate_icon 180  icon-ios-60x60@3x.png
+          generate_icon 128  icon-ios-64x64@2x.png
+          generate_icon 192  icon-ios-64x64@3x.png
+          generate_icon 136  icon-ios-68x68@2x.png
+          generate_icon 152  icon-ios-76x76@2x.png
+          generate_icon 167  icon-ios-83.5x83.5@2x.png
+          generate_icon 1024 icon-ios-1024x1024.png
+
+          test -s "$ICON_DIR/icon-ios-1024x1024.png"
+
+      - name: Verify 2.0 access isolation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("Cyanide/StorageCleanerPolishedSafeViewController.m").read_text()
+          overlay = Path("Cyanide/StorageCleanerFullscreenStartupViewController.m").read_text()
+          intro = Path("Cyanide/StorageCleanerIntroViewController.m").read_text()
+          config = Path("StorageRescue.xcconfig").read_text()
+
+          assert "- (void)updateChrome" not in source
+          assert "- (void)scanCurrentMode" not in source
+          assert "[self scRunCountdown:5]" in source
+          assert "[self prepareAccess]" in source
+          assert "prepareAccess" not in overlay
+          assert 'storageCleaner.onboardingSeen' in intro
+          assert "PRODUCT_BUNDLE_IDENTIFIER = com.ai.StorageCleaner" in config
+          assert "MARKETING_VERSION = 2.0.0" in config
+          assert "CURRENT_PROJECT_VERSION = 15" in config
+          PY
 
       - name: Build unsigned IPA
         run: |
           chmod +x scripts/build.sh
           ./scripts/build.sh
-          cp -L build/Storage-Rescue.ipa build/Storage-Cleaner-release.ipa
-          ls -lh build/Storage-Cleaner-release.ipa
+          cp -L build/Storage-Rescue.ipa build/StorageCleanerDS-release.ipa
+          ls -lh build/StorageCleanerDS-release.ipa
 
-      - name: Read product identity
+      - name: Read and verify product identity
         id: identity
         run: |
-          APP="build/DerivedData/Build/Products/Debug-iphoneos/Cyanide.app"
-          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Info.plist")
-          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Info.plist")
-          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist")
-          DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$APP/Info.plist")
+          rm -rf /tmp/storagecleanerds-release
+          mkdir -p /tmp/storagecleanerds-release
+          unzip -q -o build/StorageCleanerDS-release.ipa -d /tmp/storagecleanerds-release
+
+          APP="/tmp/storagecleanerds-release/Payload/Cyanide.app"
+          PLIST="$APP/Info.plist"
+
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST")
+          DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$PLIST")
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
           echo "bundle_id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
-          test "$DISPLAY_NAME" = "Storage Cleaner"
-          test "$BUNDLE_ID" = "com.boierito.cyanide"
 
-      - name: Publish release
+          test "$DISPLAY_NAME" = "Storage Cleaner"
+          test "$BUNDLE_ID" = "com.ai.StorageCleaner"
+          test "$VERSION" = "2.0.0"
+          test "$BUILD" = "15"
+          test -x "$APP/Cyanide"
+          test -f "$APP/libxpf.dylib"
+          test -f "$APP/Assets.car"
+          xcrun otool -L "$APP/Cyanide" | grep -F '@loader_path/libxpf.dylib'
+
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.identity.outputs.version }}
           BUILD: ${{ steps.identity.outputs.build }}
           BUNDLE_ID: ${{ steps.identity.outputs.bundle_id }}
         run: |
-          TAG="storage-cleaner-v${VERSION}"
-          IPA="build/Storage-Cleaner-${VERSION}.ipa"
-          mv build/Storage-Cleaner-release.ipa "$IPA"
+          TAG="storagecleanerds-v${VERSION}"
+          IPA="build/StorageCleanerDS-${VERSION}.ipa"
+          mv build/StorageCleanerDS-release.ipa "$IPA"
 
           cat > /tmp/release-notes.md <<EOF
-          # Storage Cleaner ${VERSION}
+          # StorageCleanerDS ${VERSION}
 
-          Functional baseline release before the next cleaner-performance iteration.
+          StorageCleanerDS 2.0 is the first consolidated release of the cleaner-focused Cyanide/DarkSword fork.
 
           **Bundle ID:** \`${BUNDLE_ID}\`  
           **Version:** \`${VERSION}\`  
           **Build:** \`${BUILD}\`
 
-          ## Included
+          ## What's new in 2.0
 
-          - Storage Cleaner frontend with Apps and System Cache presentation.
-          - Gain Access / scanning / cleanup backend kept on the proven main implementation.
-          - Protected cleanup remains available as the advanced fallback.
-          - Runtime dependency validation for \`libxpf.dylib\`.
+          - Progressive app-by-app cache scanning with live results instead of waiting for a complete-device pass.
+          - Separate **Apps** and **System Cache** modes.
+          - Real application-name resolution after Gain Access is complete and the cleaner is idle.
+          - Automatic Gain Access after a five-second fullscreen startup countdown.
+          - One-time onboarding shown only on the first launch after installation.
+          - Cleaner interface with less redundant explanatory text and friendlier app rows.
+          - Old **Protected Cleanup** screen removed from the normal user workflow; guarded backend fallback remains internal where needed.
+          - Final StorageCleanerDS AppIcon: hard drive, broom and dark sword, generated for every iOS icon size.
+          - Bundle identity updated to \`com.ai.StorageCleaner\` while preserving the inherited internal \`Cyanide\` executable identity required by the low-level runtime.
+          - Updated help, credits, safety boundaries and project documentation.
+
+          ## Reliability / backend preservation
+
+          The working Cyanide/DarkSword Gain Access implementation remains the base of this release. UI and app-name work are deliberately isolated from the exploit-sensitive phase: no bundle catalog scan or LaunchServices work is started before Gain Access completes.
+
+          The 2.0 build was validated on-device before promotion to \`main\`, and CI verifies bundle identity, AppIcon generation, \`libxpf.dylib\` linkage and the startup isolation checks.
+
+          ## Cleanup scope
+
+          Per-app cleanup is limited to temporary data under \`Library/Caches\` and \`tmp\` inside validated app containers. System Cache uses the compatible iOS CacheDelete leftovers path when present.
+
+          ## Credits
+
+          - **Lucas Boiero / @boierito** — StorageCleanerDS fork, product direction, integration and testing.
+          - Cyanide / zeroxjf.
+          - DarkSword, ChOma and XPF / opa334.
+          - darksword-kexploit-fun / RemoteCall / wh1te4ever.
+          - rooootdev.
+          - YangJiiii/3105 for cleaner/progressive-result reference behavior.
 
           ## Installation
 
-          \`Storage-Cleaner-${VERSION}.ipa\` is unsigned and must be signed/sideloaded using a compatible method for the target device.
+          \`StorageCleanerDS-${VERSION}.ipa\` is unsigned and must be signed/sideloaded using a compatible method for the target device.
+
+          > StorageCleanerDS permanently removes filesystem data and relies on a kernel-exploit-based access backend. Use it only on devices and data you control and keep backups of important data.
           EOF
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$IPA" --clobber
-            gh release edit "$TAG" --title "Storage Cleaner ${VERSION}" --notes-file /tmp/release-notes.md
+            gh release edit "$TAG" --title "StorageCleanerDS ${VERSION}" --notes-file /tmp/release-notes.md
           else
             gh release create "$TAG" "$IPA" \
               --target "$GITHUB_SHA" \
-              --title "Storage Cleaner ${VERSION}" \
+              --title "StorageCleanerDS ${VERSION}" \
               --notes-file /tmp/release-notes.md
           fi
