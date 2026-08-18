@@ -1,0 +1,4 @@
+#import "StorageCleanerProgressiveViewController.h"
+
+@interface StorageCleanerPolishedSafeViewController : StorageCleanerProgressiveViewController
+@end

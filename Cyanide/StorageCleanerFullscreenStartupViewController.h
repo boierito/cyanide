@@ -1,0 +1,4 @@
+#import "StorageCleanerPolishedSafeViewController.h"
+
+@interface StorageCleanerFullscreenStartupViewController : StorageCleanerPolishedSafeViewController
+@end

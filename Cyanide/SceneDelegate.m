@@ -1,12 +1,21 @@
 //
 //  SceneDelegate.m
-//  Storage Cleaner dedicated fork
+//  Storage Cleaner 2.0 experimental branch
 //
 
 #import "SceneDelegate.h"
-#import "StorageRescueCleanupViewController.h"
+#import "StorageCleanerFullscreenStartupViewController.h"
+#import "StorageCleanerIntroViewController.h"
 
 @implementation SceneDelegate
+
+- (UINavigationController *)storageCleanerNavigationController
+{
+    StorageCleanerFullscreenStartupViewController *root = [[StorageCleanerFullscreenStartupViewController alloc] init];
+    UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:root];
+    navigation.navigationBar.prefersLargeTitles = YES;
+    return navigation;
+}
 
 - (void)scene:(UIScene *)scene
 willConnectToSession:(UISceneSession *)session
@@ -17,11 +26,25 @@ willConnectToSession:(UISceneSession *)session
     UIWindowScene *windowScene = (UIWindowScene *)scene;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
 
-    StorageRescueCleanupViewController *root = [[StorageRescueCleanupViewController alloc] init];
-    UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:root];
-    navigation.navigationBar.prefersLargeTitles = YES;
+    if ([StorageCleanerIntroViewController shouldShow]) {
+        StorageCleanerIntroViewController *intro = [[StorageCleanerIntroViewController alloc] init];
+        __weak typeof(self) weakSelf = self;
+        intro.completion = ^{
+            UIWindow *window = weakSelf.window;
+            if (!window) return;
+            UIViewController *cleaner = [weakSelf storageCleanerNavigationController];
+            [UIView transitionWithView:window
+                              duration:0.25
+                               options:UIViewAnimationOptionTransitionCrossDissolve
+                            animations:^{
+                window.rootViewController = cleaner;
+            } completion:nil];
+        };
+        self.window.rootViewController = intro;
+    } else {
+        self.window.rootViewController = [self storageCleanerNavigationController];
+    }
 
-    self.window.rootViewController = navigation;
     [self.window makeKeyAndVisible];
 }
 

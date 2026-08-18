@@ -46,44 +46,49 @@
         [stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor],
     ]];
 
-    UILabel *title = [self heading:@"How it works" style:UIFontTextStyleTitle2];
-    [stack addArrangedSubview:title];
+    [stack addArrangedSubview:[self heading:@"How it works" style:UIFontTextStyleTitle2]];
+
+    [stack addArrangedSubview:[self cardWithTitle:@"Automatic Access"
+                                           body:@"On normal launches, Storage Cleaner waits five seconds and enables the existing Cyanide/DarkSword access path automatically. Nothing is deleted during this step."]];
 
     [stack addArrangedSubview:[self cardWithTitle:@"Apps"
-                                           body:@"The app starts storage access automatically, then scans each installed app's Library/Caches and tmp folders. Results appear progressively as each app finishes scanning. Nothing is removed until you select items and confirm cleanup."]];
+                                           body:@"Scans temporary Library/Caches and tmp data app by app. Results appear progressively instead of waiting for the whole device scan."]];
 
     [stack addArrangedSubview:[self cardWithTitle:@"System Cache"
-                                           body:@"System Cache is intentionally separate from app cache/temp. It shows CacheDelete leftovers already managed by iOS. These entries are not presented as normal apps."]];
+                                           body:@"Shows compatible iOS CacheDelete leftovers only when they exist. An empty list is normal."]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"Protected Cleanup"
-                                           body:@"Protected Cleanup is not a normal cleaning category. It is the advanced fallback used only when iOS refuses a normal deletion or when System Cache entries have been staged for verified removal. That is why Rescue is no longer a main tab."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"Clean"
+                                           body:@"Select the entries you want, review the selected size, then confirm. Close selected apps first."]];
 
     [stack setCustomSpacing:24.0 afterView:stack.arrangedSubviews.lastObject];
     [stack addArrangedSubview:[self heading:@"FAQ" style:UIFontTextStyleTitle3]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"What can be deleted?"
-                                           body:@"For apps, only Library/Caches and tmp are in scope. Photos, documents, messages, credentials, user-created files and normal application data are outside the app-cleaning path."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"What can Apps remove?"
+                                           body:@"Only Library/Caches and tmp inside validated app containers. Photos, documents, messages, credentials and normal app data are outside this path."]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"Why does access start automatically?"
-                                           body:@"The cleaner cannot inspect the relevant storage paths until the existing Cyanide/DarkSword access flow succeeds. The same backend is used as before; the new UI only starts it automatically when the cleaner opens."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"Why do results appear one by one?"
+                                           body:@"Some apps contain thousands of files. Storage Cleaner scans a small number of containers concurrently and publishes each completed result immediately."]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"Why can scanning still take time?"
-                                           body:@"Some apps contain tens of thousands of files. The cleaner now scans several app containers concurrently and inserts each completed result immediately instead of waiting for every app to finish."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"Why might System Cache be empty?"
+                                           body:@"That directory is managed by iOS and may not exist or may contain nothing removable. Storage Cleaner does not create artificial entries."]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"How do sorting and search work?"
-                                           body:@"Use the sort control to order by size or name, in either direction. Search matches application names and bundle identifiers. Pull down on the list to rescan."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"How are app names found?"
+                                           body:@"After Gain Access and the initial scan are idle, Storage Cleaner reads installed app metadata and falls back to LaunchServices. Extra name lookup does not run during Gain Access."]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"What happens if normal deletion is denied?"
-                                           body:@"The original protected cleanup path remains available from the More menu. It keeps the solver and low-level backend separate from the normal browsing experience."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"Before cleaning"
+                                           body:@"Cleanup is permanent. Apps and iOS can recreate temporary cache later, but you should still close selected apps and review the list first."]];
 
     [stack setCustomSpacing:24.0 afterView:stack.arrangedSubviews.lastObject];
     [stack addArrangedSubview:[self heading:@"Credits" style:UIFontTextStyleTitle3]];
+
+    [stack addArrangedSubview:[self cardWithTitle:@"Storage Cleaner"
+                                           body:@"Lucas Boiero — @boierito on GitHub. Product direction, integration and this Storage Cleaner fork."]];
 
     NSString *credits = @"zeroxjf — Cyanide project and integration work this fork derives from.\n\n"
                          "opa334 — original DarkSword kernel exploit work, ChOma and XPF components.\n\n"
                          "wh1te4ever — darksword-kexploit-fun / RemoteCall work used by Cyanide.\n\n"
                          "rooootdev — exploit behavior referenced by Cyanide for reliability work.\n\n"
-                         "YangJiiii / 3105 — reference for the deliberately limited per-app cache-cleaner model.\n\n"
+                         "YangJiiii / 3105 — reference for the limited per-app cleaner and progressive scan model.\n\n"
                          "Cyanide upstream contributors and the researchers credited in the original project history.";
     [stack addArrangedSubview:[self cardWithTitle:@"Upstream & research" body:credits]];
 
