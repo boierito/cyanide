@@ -71,6 +71,10 @@ StorageCleanerDS performs real filesystem deletion and uses a kernel-exploit-bas
 
 Although app cleanup is intentionally restricted to temporary cache locations, low-level filesystem tools always carry risk. Review your selections before cleaning.
 
+## AI Slop Disclosure
+
+**Yes, this is AI Slop.** The current product/UI iteration was made with **GPT-5.6 Sol**. The underlying **Cyanide, DarkSword, XPF, ChOma and 3105** work remains credited below.
+
 ## Credits
 
 - [`boierito`](https://github.com/boierito) — **Lucas Boiero**; StorageCleanerDS fork, product direction, integration and testing.
