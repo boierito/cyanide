@@ -1,11 +1,11 @@
-// Storage Cleaner corrected progressive build.
-// Keep the runtime bundle identity used by the working build. Gain Access,
-// DarkSword/XPF setup, staging and solver remain inherited from the proven main
-// implementation; no filesystem or LaunchServices work runs during Gain Access.
+// Storage Cleaner 1.2.2 experimental identity.
+// The internal Xcode product/executable intentionally remains Cyanide because
+// inherited linker/runtime paths depend on that name. The installed app identity
+// is normalized from this file into the final IPA payload.
 
-PRODUCT_BUNDLE_IDENTIFIER = com.boierito.cyanide
-MARKETING_VERSION = 1.2.1
-CURRENT_PROJECT_VERSION = 12
+PRODUCT_BUNDLE_IDENTIFIER = com.ai.StorageCleaner
+MARKETING_VERSION = 1.2.2
+CURRENT_PROJECT_VERSION = 13
 INFOPLIST_KEY_CFBundleDisplayName = Storage Cleaner
 INFOPLIST_KEY_CFBundleName = StorageCleaner
 
