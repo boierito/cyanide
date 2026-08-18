@@ -9,7 +9,7 @@ on:
       - ".github/workflows/storage-rescue.yml"
       - "StorageRescue.xcconfig"
       - "scripts/build.sh"
-      - "Cyanide/StorageCleanerAppIconSource.jpg"
+      - "Cyanide/StorageCleanerAppIconSource.b64"
       - "Cyanide/Assets.xcassets/AppIcon.appiconset/**"
       - "Cyanide/StorageCleanerProgressiveViewController.h"
       - "Cyanide/StorageCleanerProgressiveViewController.m"
@@ -68,7 +68,6 @@ jobs:
           scene = Path("Cyanide/SceneDelegate.m").read_text()
           config = Path("StorageRescue.xcconfig").read_text()
 
-          # Proven automatic-access implementation stays in the same class.
           assert "- (void)updateChrome" not in source
           assert "- (void)scanCurrentMode" not in source
           assert "[self scRunCountdown:5]" in source
@@ -81,7 +80,6 @@ jobs:
           bundle_walk = source.index("/var/containers/Bundle/Application", background_work)
           assert wait < prepared_gate < busy_gate < background_work < bundle_walk
 
-          # Fullscreen subclass is presentation-only.
           assert "- (void)viewDidAppear" not in overlay
           assert "- (void)scRunCountdown" not in overlay
           assert "- (void)scMonitorAutomaticAccess" not in overlay
@@ -89,7 +87,6 @@ jobs:
           assert "self.view.window" in overlay
           assert "bringSubviewToFront" in overlay
 
-          # Onboarding is one-time and hands off to the same cleaner root.
           assert 'storageCleaner.onboardingSeen' in intro
           assert '[StorageCleanerIntroViewController shouldShow]' in scene
           assert 'StorageCleanerFullscreenStartupViewController' in scene
@@ -102,9 +99,26 @@ jobs:
 
       - name: Generate supplied Storage Cleaner AppIcon
         run: |
-          SOURCE="Cyanide/StorageCleanerAppIconSource.jpg"
+          SOURCE_B64="Cyanide/StorageCleanerAppIconSource.b64"
+          SOURCE="/tmp/StorageCleanerAppIconSource.jpg"
           ICON_DIR="Cyanide/Assets.xcassets/AppIcon.appiconset"
-          test -s "$SOURCE"
+          test -s "$SOURCE_B64"
+
+          python3 - <<'PY'
+          import base64, hashlib
+          from pathlib import Path
+
+          encoded = Path("Cyanide/StorageCleanerAppIconSource.b64").read_text().strip()
+          raw = base64.b64decode(encoded, validate=True)
+          digest = hashlib.sha256(raw).hexdigest()
+          expected = "8e2cd2c26dd9889798cb536aa7bf188fdd1e253f8cc26b1a3a466b60b89eb353"
+          if digest != expected:
+              raise SystemExit(f"icon source digest mismatch: {digest}")
+          Path("/tmp/StorageCleanerAppIconSource.jpg").write_bytes(raw)
+          print(f"Supplied icon source SHA-256: {digest}")
+          PY
+
+          sips -g pixelWidth -g pixelHeight "$SOURCE"
 
           generate_icon() {
             local size="$1"
@@ -134,7 +148,6 @@ jobs:
           HEIGHT=$(sips -g pixelHeight "$ICON_DIR/icon-ios-1024x1024.png" | awk '/pixelHeight/ {print $2}')
           test "$WIDTH" = "1024"
           test "$HEIGHT" = "1024"
-          echo "Supplied icon source SHA-256: $(shasum -a 256 "$SOURCE" | awk '{print $1}')"
 
       - name: Build unsigned IPA
         run: |
