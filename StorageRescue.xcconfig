@@ -1,11 +1,11 @@
-// Storage Cleaner progressive-scan test identity.
-// Keep the runtime bundle identity used by the working main build. Gain Access,
+// Storage Cleaner corrected progressive build.
+// Keep the runtime bundle identity used by the working build. Gain Access,
 // DarkSword/XPF setup, staging and solver remain inherited from the proven main
-// implementation; this branch only experiments with cleaner scan/cleanup flow.
+// implementation; no filesystem or LaunchServices work runs during Gain Access.
 
 PRODUCT_BUNDLE_IDENTIFIER = com.boierito.cyanide
-MARKETING_VERSION = 1.2.0
-CURRENT_PROJECT_VERSION = 10
+MARKETING_VERSION = 1.2.1
+CURRENT_PROJECT_VERSION = 12
 INFOPLIST_KEY_CFBundleDisplayName = Storage Cleaner
 INFOPLIST_KEY_CFBundleName = StorageCleaner
 
