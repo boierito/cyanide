@@ -48,44 +48,41 @@
 
     [stack addArrangedSubview:[self heading:@"How it works" style:UIFontTextStyleTitle2]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"1. Automatic Access"
-                                           body:@"After Storage Cleaner appears, a five-second loading screen starts Gain Access automatically. Nothing is deleted during this step."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"Automatic Access"
+                                           body:@"On normal launches, Storage Cleaner waits five seconds and enables the existing Cyanide/DarkSword access path automatically. Nothing is deleted during this step."]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"2. Apps"
-                                           body:@"Apps scans only Library/Caches and tmp. Results appear progressively as each app finishes so you can see scan progress without waiting for the whole device."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"Apps"
+                                           body:@"Scans temporary Library/Caches and tmp data app by app. Results appear progressively instead of waiting for the whole device scan."]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"3. System Cache"
-                                           body:@"System Cache is separate from app cache. It shows compatible CacheDelete leftovers only when iOS has created them. An empty list means there is currently nothing compatible there."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"System Cache"
+                                           body:@"Shows compatible iOS CacheDelete leftovers only when they exist. An empty list is normal."]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"4. Select and Clean"
-                                           body:@"Choose the entries you want, review the selected size, then confirm. App cleanup updates each row as it finishes instead of waiting for a full rescan."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"Clean"
+                                           body:@"Select the entries you want, review the selected size, then confirm. Close selected apps first."]];
 
     [stack setCustomSpacing:24.0 afterView:stack.arrangedSubviews.lastObject];
     [stack addArrangedSubview:[self heading:@"FAQ" style:UIFontTextStyleTitle3]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"What can App cleanup delete?"
-                                           body:@"Only Library/Caches and tmp inside validated application containers. Photos, documents, messages, credentials and normal application data are outside the app-cleaning path."]];
-
-    [stack addArrangedSubview:[self cardWithTitle:@"What happens during the five-second wait?"
-                                           body:@"Only the loading interface and a main-thread countdown run. Extra filesystem enumeration and application-name lookup wait until Gain Access and the initial scan are finished."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"What can Apps remove?"
+                                           body:@"Only Library/Caches and tmp inside validated app containers. Photos, documents, messages, credentials and normal app data are outside this path."]];
 
     [stack addArrangedSubview:[self cardWithTitle:@"Why do results appear one by one?"
-                                           body:@"Some applications contain many thousands of files. Storage Cleaner scans a few containers concurrently and publishes each completed result immediately."]];
+                                           body:@"Some apps contain thousands of files. Storage Cleaner scans a small number of containers concurrently and publishes each completed result immediately."]];
 
     [stack addArrangedSubview:[self cardWithTitle:@"Why might System Cache be empty?"
-                                           body:@"The CacheDelete leftovers directory is managed by iOS and is not guaranteed to exist. Storage Cleaner never creates fake system-cache entries just to populate the list."]];
+                                           body:@"That directory is managed by iOS and may not exist or may contain nothing removable. Storage Cleaner does not create artificial entries."]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"How are real app names found?"
-                                           body:@"After access and the initial scan are idle, Storage Cleaner reads installed app bundle metadata and falls back to LaunchServices. Until then it does not start the extra name catalog."]];
-
-    [stack addArrangedSubview:[self cardWithTitle:@"Where did Protected Cleanup go?"
-                                           body:@"The standalone Protected Cleanup screen is not exposed as a normal mode. The proven recovery backend remains available contextually when a selected item genuinely needs it."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"How are app names found?"
+                                           body:@"After Gain Access and the initial scan are idle, Storage Cleaner reads installed app metadata and falls back to LaunchServices. Extra name lookup does not run during Gain Access."]];
 
     [stack addArrangedSubview:[self cardWithTitle:@"Before cleaning"
-                                           body:@"Close the apps you select, review the list carefully, and remember that cleanup is permanent. Apps and iOS can recreate temporary cache later."]];
+                                           body:@"Cleanup is permanent. Apps and iOS can recreate temporary cache later, but you should still close selected apps and review the list first."]];
 
     [stack setCustomSpacing:24.0 afterView:stack.arrangedSubviews.lastObject];
     [stack addArrangedSubview:[self heading:@"Credits" style:UIFontTextStyleTitle3]];
+
+    [stack addArrangedSubview:[self cardWithTitle:@"Storage Cleaner"
+                                           body:@"Lucas Boiero — @boierito on GitHub. Product direction, integration and this Storage Cleaner fork."]];
 
     NSString *credits = @"zeroxjf — Cyanide project and integration work this fork derives from.\n\n"
                          "opa334 — original DarkSword kernel exploit work, ChOma and XPF components.\n\n"
