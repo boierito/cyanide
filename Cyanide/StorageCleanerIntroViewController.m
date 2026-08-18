@@ -1,6 +1,6 @@
 #import "StorageCleanerIntroViewController.h"
 
-static NSString * const SCIntroSeenKey = @"storageCleaner.introSeen.1_2_1_fix";
+static NSString * const SCIntroSeenKey = @"storageCleaner.onboardingSeen";
 
 @implementation StorageCleanerIntroViewController
 
@@ -18,7 +18,7 @@ static NSString * const SCIntroSeenKey = @"storageCleaner.introSeen.1_2_1_fix";
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 14.0;
-    stack.layoutMargins = UIEdgeInsetsMake(28.0, 22.0, 28.0, 22.0);
+    stack.layoutMargins = UIEdgeInsetsMake(40.0, 24.0, 30.0, 24.0);
     stack.layoutMarginsRelativeArrangement = YES;
     [scroll addSubview:stack];
 
@@ -38,40 +38,46 @@ static NSString * const SCIntroSeenKey = @"storageCleaner.introSeen.1_2_1_fix";
     icon.translatesAutoresizingMaskIntoConstraints = NO;
     icon.contentMode = UIViewContentModeScaleAspectFit;
     icon.tintColor = UIColor.systemBlueColor;
-    [icon.heightAnchor constraintEqualToConstant:58.0].active = YES;
+    [icon.heightAnchor constraintEqualToConstant:64.0].active = YES;
     [stack addArrangedSubview:icon];
 
     UILabel *title = [self label:@"Storage Cleaner" style:UIFontTextStyleTitle1 weight:UIFontWeightBold color:UIColor.labelColor];
     title.textAlignment = NSTextAlignmentCenter;
     [stack addArrangedSubview:title];
 
-    UILabel *subtitle = [self label:@"Free temporary storage without touching your personal files."
+    UILabel *subtitle = [self label:@"Free temporary storage without digging through every app yourself."
                                style:UIFontTextStyleBody
                               weight:UIFontWeightRegular
                                color:UIColor.secondaryLabelColor];
     subtitle.textAlignment = NSTextAlignmentCenter;
     [stack addArrangedSubview:subtitle];
 
-    [stack setCustomSpacing:24.0 afterView:subtitle];
+    [stack setCustomSpacing:26.0 afterView:subtitle];
 
-    [stack addArrangedSubview:[self card:@"1. Enable Access"
-                                   body:@"Required once after opening the app. It enables scanning; nothing is deleted yet."]];
-    [stack addArrangedSubview:[self card:@"2. Review Apps or System Cache"
-                                   body:@"Apps shows temporary cache app by app. System Cache appears only when iOS has compatible leftovers."]];
-    [stack addArrangedSubview:[self card:@"3. Select and Clean"
-                                   body:@"Choose exactly what you want to remove, then confirm the cleanup."]];
+    [stack addArrangedSubview:[self card:@"Automatic access"
+                                   body:@"After this guide, Storage Cleaner waits 5 seconds and enables the proven Cyanide/DarkSword access path automatically. Nothing is deleted during access."]];
 
-    [stack addArrangedSubview:[self card:@"Before you clean"
-                                   body:@"Close the apps you select, review the list carefully, and remember that cleanup is permanent. Cache may be recreated later."]];
+    [stack addArrangedSubview:[self card:@"Apps & System Cache"
+                                   body:@"Apps scans temporary Library/Caches and tmp data app by app. System Cache only shows compatible iOS leftovers when they exist."]];
+
+    [stack addArrangedSubview:[self card:@"You stay in control"
+                                   body:@"Select what you want to clean. Close selected apps first and review the list: cleanup is permanent, although apps and iOS can recreate cache later."]];
+
+    UILabel *once = [self label:@"You will only see this guide once after installation. Help and credits remain available from the ••• menu."
+                              style:UIFontTextStyleFootnote
+                             weight:UIFontWeightRegular
+                              color:UIColor.tertiaryLabelColor];
+    once.textAlignment = NSTextAlignmentCenter;
+    [stack addArrangedSubview:once];
 
     UIButton *continueButton = [UIButton buttonWithType:UIButtonTypeSystem];
     UIButtonConfiguration *configuration = [UIButtonConfiguration filledButtonConfiguration];
     configuration.title = @"Continue";
     configuration.cornerStyle = UIButtonConfigurationCornerStyleLarge;
-    configuration.contentInsets = NSDirectionalEdgeInsetsMake(13.0, 18.0, 13.0, 18.0);
+    configuration.contentInsets = NSDirectionalEdgeInsetsMake(14.0, 18.0, 14.0, 18.0);
     continueButton.configuration = configuration;
     [continueButton addTarget:self action:@selector(continueTapped) forControlEvents:UIControlEventTouchUpInside];
-    [continueButton.heightAnchor constraintGreaterThanOrEqualToConstant:52.0].active = YES;
+    [continueButton.heightAnchor constraintGreaterThanOrEqualToConstant:54.0].active = YES;
     [stack addArrangedSubview:continueButton];
 }
 
@@ -117,7 +123,7 @@ static NSString * const SCIntroSeenKey = @"storageCleaner.introSeen.1_2_1_fix";
 - (void)continueTapped
 {
     [NSUserDefaults.standardUserDefaults setBool:YES forKey:SCIntroSeenKey];
-    [self dismissViewControllerAnimated:YES completion:nil];
+    if (self.completion) self.completion();
 }
 
 + (BOOL)shouldShow
