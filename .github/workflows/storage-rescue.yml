@@ -53,8 +53,9 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          brew install ldid
+          brew install ldid librsvg
           command -v ldid
+          command -v rsvg-convert
           ldid -h >/dev/null 2>&1 || true
 
       - name: Verify Gain Access isolation
