@@ -48,8 +48,8 @@
 
     [stack addArrangedSubview:[self heading:@"How it works" style:UIFontTextStyleTitle2]];
 
-    [stack addArrangedSubview:[self cardWithTitle:@"1. Enable Access"
-                                           body:@"Tap Enable Access once after opening Storage Cleaner. This enables the existing Cyanide/DarkSword access backend; no files are removed."]];
+    [stack addArrangedSubview:[self cardWithTitle:@"1. Automatic Access"
+                                           body:@"After Storage Cleaner appears, a five-second loading screen starts Gain Access automatically. Nothing is deleted during this step."]];
 
     [stack addArrangedSubview:[self cardWithTitle:@"2. Apps"
                                            body:@"Apps scans only Library/Caches and tmp. Results appear progressively as each app finishes so you can see scan progress without waiting for the whole device."]];
@@ -66,17 +66,20 @@
     [stack addArrangedSubview:[self cardWithTitle:@"What can App cleanup delete?"
                                            body:@"Only Library/Caches and tmp inside validated application containers. Photos, documents, messages, credentials and normal application data are outside the app-cleaning path."]];
 
+    [stack addArrangedSubview:[self cardWithTitle:@"What happens during the five-second wait?"
+                                           body:@"Only the loading interface and a main-thread countdown run. Extra filesystem enumeration and application-name lookup wait until Gain Access and the initial scan are finished."]];
+
     [stack addArrangedSubview:[self cardWithTitle:@"Why do results appear one by one?"
                                            body:@"Some applications contain many thousands of files. Storage Cleaner scans a few containers concurrently and publishes each completed result immediately."]];
 
     [stack addArrangedSubview:[self cardWithTitle:@"Why might System Cache be empty?"
                                            body:@"The CacheDelete leftovers directory is managed by iOS and is not guaranteed to exist. Storage Cleaner never creates fake system-cache entries just to populate the list."]];
 
+    [stack addArrangedSubview:[self cardWithTitle:@"How are real app names found?"
+                                           body:@"After access and the initial scan are idle, Storage Cleaner reads installed app bundle metadata and falls back to LaunchServices. Until then it does not start the extra name catalog."]];
+
     [stack addArrangedSubview:[self cardWithTitle:@"Where did Protected Cleanup go?"
                                            body:@"The standalone Protected Cleanup screen is not exposed as a normal mode. The proven recovery backend remains available contextually when a selected item genuinely needs it."]];
-
-    [stack addArrangedSubview:[self cardWithTitle:@"How are app names resolved safely?"
-                                           body:@"Storage Cleaner first uses the name already returned by the progressive scanner. Extra bundle-name lookup is only attempted after Gain Access has finished and no scan or cleanup operation is running."]];
 
     [stack addArrangedSubview:[self cardWithTitle:@"Before cleaning"
                                            body:@"Close the apps you select, review the list carefully, and remember that cleanup is permanent. Apps and iOS can recreate temporary cache later."]];
